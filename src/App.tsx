@@ -346,30 +346,33 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        const userRef = doc(db, 'users', u.uid);
-        const userSnap = await getDocs(query(collection(db, 'users'), where('uid', '==', u.uid), limit(1)));
-        
-        if (!userSnap.empty) {
-          const data = userSnap.docs[0].data() as AppUser;
-          setAppUser(data);
-          if (data.role === 'superadmin') setView('superadmin');
-          else if (view === 'landing') setView('landing'); // Keep landing if they just logged in from there? No, usually go to dashboard
-          else setView('organizer');
-        } else {
-          const isDefaultAdmin = u.email === 'ammarthaqif.ar@gmail.com';
-          const newUser: AppUser = {
-            uid: u.uid,
-            email: u.email || '',
-            role: isDefaultAdmin ? 'superadmin' : 'user'
-          };
-          await setDoc(userRef, newUser);
-          setAppUser(newUser);
-          if (isDefaultAdmin) setView('superadmin');
-          else setView('organizer');
+        try {
+          const userSnap = await getDocs(query(collection(db, 'users'), where('uid', '==', u.uid), limit(1)));
+          
+          if (!userSnap.empty) {
+            const data = userSnap.docs[0].data() as AppUser;
+            setAppUser(data);
+            if (data.role === 'superadmin') setView('superadmin');
+            else if (view === 'login') setView('organizer'); // If they were logging in, take them to dashboard
+            // If they are on landing, we stay on landing (they can click Launch later)
+          } else {
+            const isDefaultAdmin = u.email === 'ammarthaqif.ar@gmail.com';
+            const newUser: AppUser = {
+              uid: u.uid,
+              email: u.email || '',
+              role: isDefaultAdmin ? 'superadmin' : 'user'
+            };
+            await setDoc(doc(db, 'users', u.uid), newUser);
+            setAppUser(newUser);
+            if (isDefaultAdmin) setView('superadmin');
+            else setView('organizer');
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          handleFirestoreError(error, OperationType.GET, 'users');
         }
       } else {
         setAppUser(null);
-        // Don't force login view if we are on landing
         if (view !== 'landing' && view !== 'audience' && view !== 'umpire') {
           setView('landing');
         }
@@ -377,7 +380,7 @@ export default function App() {
       setLoading(false);
     });
     return () => unsubscribe();
-  }, []);
+  }, [view]); // Add view to dependencies to react to transitions
 
   useEffect(() => {
     if (!user || view !== 'organizer') return;
@@ -423,9 +426,12 @@ export default function App() {
   const handleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
+      console.log("Starting login...");
+      const result = await signInWithPopup(auth, provider);
+      console.log("Login successful:", result.user.email);
+    } catch (error: any) {
       console.error("Login failed", error);
+      alert(`Login failed: ${error.message || "Unknown error"}. Please ensure popups are allowed.`);
     }
   };
 
@@ -663,7 +669,10 @@ export default function App() {
   if (loading) return <div className="flex items-center justify-center h-screen font-mono text-slate-400">Loading SmashTrack...</div>;
 
   if (view === 'landing') {
-    return <LandingView onStart={() => setView('login')} />;
+    return <LandingView onStart={() => {
+      if (user) setView('organizer');
+      else setView('login');
+    }} />;
   }
 
   if (view === 'superadmin') {
