@@ -352,9 +352,14 @@ export default function App() {
           if (!userSnap.empty) {
             const data = userSnap.docs[0].data() as AppUser;
             setAppUser(data);
+            // Only auto-redirect if they are stuck on login or if they are superadmin
             if (data.role === 'superadmin') setView('superadmin');
-            else if (view === 'login') setView('organizer'); // If they were logging in, take them to dashboard
-            // If they are on landing, we stay on landing (they can click Launch later)
+            else {
+              // We don't force setView('organizer') here because it might interrupt 
+              // a user who just logged in but wants to stay on the current page
+              // However, if they were on the login page, we should take them to the dashboard
+              setView(prev => prev === 'login' ? 'organizer' : prev);
+            }
           } else {
             const isDefaultAdmin = u.email === 'ammarthaqif.ar@gmail.com';
             const newUser: AppUser = {
@@ -373,14 +378,16 @@ export default function App() {
         }
       } else {
         setAppUser(null);
-        if (view !== 'landing' && view !== 'audience' && view !== 'umpire') {
-          setView('landing');
-        }
+        // Only redirect to landing if they are in a view that REQUIRES auth
+        setView(prev => {
+          if (prev === 'organizer' || prev === 'superadmin') return 'landing';
+          return prev;
+        });
       }
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [view]); // Add view to dependencies to react to transitions
+  }, []); // Removed view from dependencies
 
   useEffect(() => {
     if (!user || view !== 'organizer') return;
