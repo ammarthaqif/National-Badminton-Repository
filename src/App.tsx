@@ -78,12 +78,14 @@ class ErrorBoundary extends Component<any, any> {
 
 const LoginView = ({ 
   onLogin, 
+  loginLoading,
   onJoin, 
   tempTournament, 
   onSelectRole,
   onCancelJoin
 }: { 
   onLogin: () => void, 
+  loginLoading: boolean,
   onJoin: (pin: string) => void,
   tempTournament: Tournament | null,
   onSelectRole: (role: 'umpire' | 'audience') => void,
@@ -97,7 +99,7 @@ const LoginView = ({
         animate={{ opacity: 1, y: 0 }}
         className="max-w-md w-full"
       >
-        <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm">
+        <Card className="border-none shadow-xl bg-white">
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto bg-blue-600 p-4 rounded-2xl w-fit shadow-lg shadow-blue-200">
               <Trophy className="w-12 h-12 text-white" />
@@ -119,9 +121,17 @@ const LoginView = ({
                 >
                   <Button 
                     onClick={() => { console.log("Organizer Login button clicked"); onLogin(); }} 
+                    disabled={loginLoading}
                     className="w-full h-12 text-lg font-medium bg-slate-900 hover:bg-slate-800 transition-all"
                   >
-                    <LogIn className="mr-2 h-5 w-5" /> Organizer Login
+                    {loginLoading ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Logging in...
+                      </div>
+                    ) : (
+                      <><LogIn className="mr-2 h-5 w-5" /> Organizer Login</>
+                    )}
                   </Button>
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-200"></span></div>
@@ -387,14 +397,17 @@ export default function App() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [umpires, setUmpires] = useState<Umpire[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  console.log("App Render - View:", view, "User:", user?.email, "AppUser Role:", appUser?.role);
 
   const addNotification = (message: string, type: 'info' | 'success' | 'warning' = 'info') => {
     const id = Math.random().toString(36).substring(2, 9);
     setNotifications(prev => [{ id, message, type, timestamp: new Date().toISOString(), read: false }, ...prev].slice(0, 5));
     setTimeout(() => {
       setNotifications(prev => prev.filter(n => n.id !== id));
-    }, 5000);
+    }, 10000);
   };
 
   useEffect(() => {
@@ -500,10 +513,10 @@ export default function App() {
                 addNotification("License activated! Welcome to SmashTrack.", "success");
               } else {
                 console.log("No license found for email:", u.email);
-                addNotification("No registered license found for this email. Please contact the administrator.", "warning");
+                addNotification("Access Denied: No registered license found for this email.", "warning");
                 // Sign out the user as they are not authorized to be an organizer
                 await auth.signOut();
-                setView('landing');
+                setView('login'); // Stay on login view so they can see the notification and try again
               }
             }
           }
@@ -570,7 +583,9 @@ export default function App() {
 
   const handleLogin = async () => {
     console.log("handleLogin triggered");
+    setLoginLoading(true);
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
       console.log("Attempting signInWithPopup...");
       const result = await signInWithPopup(auth, provider);
@@ -580,6 +595,8 @@ export default function App() {
       console.error("Login failed details:", error);
       addNotification(`Login failed: ${error.message || "Unknown error"}`, "warning");
       alert(`Login failed: ${error.message || "Unknown error"}. Please ensure popups are allowed and you are not in an incognito window that blocks third-party cookies.`);
+    } finally {
+      setLoginLoading(false);
     }
   };
 
@@ -854,6 +871,7 @@ export default function App() {
       return (
         <LoginView 
           onLogin={handleLogin} 
+          loginLoading={loginLoading}
           onJoin={handleJoinByPin} 
           tempTournament={tempTournament}
           onSelectRole={(role) => {
@@ -878,31 +896,6 @@ export default function App() {
 
     return (
       <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-        {/* Notifications Overlay */}
-        <div className="fixed bottom-4 right-4 z-[100] space-y-2 pointer-events-none">
-          <AnimatePresence>
-            {notifications.map(n => (
-              <motion.div
-                key={n.id}
-                initial={{ opacity: 0, x: 50, scale: 0.9 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className={cn(
-                  "p-4 rounded-xl shadow-lg border pointer-events-auto min-w-[300px] max-w-md flex items-start gap-3",
-                  n.type === 'success' ? "bg-green-50 border-green-100 text-green-800" :
-                  n.type === 'warning' ? "bg-yellow-50 border-yellow-100 text-yellow-800" :
-                  "bg-white border-slate-200 text-slate-800"
-                )}
-              >
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{n.message}</p>
-                  <p className="text-[10px] opacity-50 mt-1">{new Date(n.timestamp).toLocaleTimeString()}</p>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-
         {/* Header */}
         <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -1047,6 +1040,31 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      {/* Global Notifications Overlay */}
+      <div className="fixed bottom-4 right-4 z-[100] space-y-2 pointer-events-none">
+        <AnimatePresence>
+          {notifications.map(n => (
+            <motion.div
+              key={n.id}
+              initial={{ opacity: 0, x: 50, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className={cn(
+                "p-4 rounded-xl shadow-lg border pointer-events-auto min-w-[300px] max-w-md flex items-start gap-3",
+                n.type === 'success' ? "bg-green-50 border-green-100 text-green-800" :
+                n.type === 'warning' ? "bg-yellow-50 border-yellow-100 text-yellow-800" :
+                "bg-white border-slate-200 text-slate-800"
+              )}
+            >
+              <div className="flex-1">
+                <p className="text-sm font-medium">{n.message}</p>
+                <p className="text-[10px] opacity-50 mt-1">{new Date(n.timestamp).toLocaleTimeString()}</p>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       <AnimatePresence mode="wait">
         <motion.div
           key={view + (selectedTournament?.id || '') + (activeMatchId || '')}
