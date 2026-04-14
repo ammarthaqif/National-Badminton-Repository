@@ -436,7 +436,7 @@ export default function App() {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [view, setView] = useState<'organizer' | 'umpire' | 'audience' | 'login' | 'superadmin' | 'landing'>('landing');
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
   const [tempTournament, setTempTournament] = useState<Tournament | null>(null);
   const [pinPrompt, setPinPrompt] = useState<{ t: Tournament, callback: () => void } | null>(null);
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
@@ -601,27 +601,29 @@ export default function App() {
     return () => unsubscribe();
   }, [user, view]);
 
+  const selectedTournament = tournaments.find(t => t.id === selectedTournamentId) || tempTournament;
+
   useEffect(() => {
-    if (!selectedTournament?.id) return;
-    const qMatches = query(collection(db, `tournaments/${selectedTournament.id}/matches`));
+    if (!selectedTournamentId) return;
+    const qMatches = query(collection(db, `tournaments/${selectedTournamentId}/matches`));
     const unsubMatches = onSnapshot(qMatches, (snapshot) => {
       setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Match)));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, `tournaments/${selectedTournament.id}/matches`);
     });
 
-    const qPlayers = query(collection(db, `tournaments/${selectedTournament.id}/players`));
+    const qPlayers = query(collection(db, `tournaments/${selectedTournamentId}/players`));
     const unsubPlayers = onSnapshot(qPlayers, (snapshot) => {
       setPlayers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Player)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `tournaments/${selectedTournament.id}/players`);
+      handleFirestoreError(error, OperationType.LIST, `tournaments/${selectedTournamentId}/players`);
     });
 
-    const qUmpires = query(collection(db, `tournaments/${selectedTournament.id}/umpires`));
+    const qUmpires = query(collection(db, `tournaments/${selectedTournamentId}/umpires`));
     const unsubUmpires = onSnapshot(qUmpires, (snapshot) => {
       setUmpires(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Umpire)));
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `tournaments/${selectedTournament.id}/umpires`);
+      handleFirestoreError(error, OperationType.LIST, `tournaments/${selectedTournamentId}/umpires`);
     });
 
     return () => {
@@ -629,7 +631,7 @@ export default function App() {
       unsubPlayers();
       unsubUmpires();
     };
-  }, [selectedTournament]);
+  }, [selectedTournamentId]);
 
   const handleLogin = async () => {
     console.log("handleLogin triggered");
@@ -711,44 +713,53 @@ export default function App() {
     // Check umpire PIN
     const qUmpire = query(collection(db, 'tournaments'), where('umpirePin', '==', pin), limit(1));
     const snapUmpire = await getDocs(qUmpire);
-    if (!snapUmpire.empty) {
-      const t = { id: snapUmpire.docs[0].id, ...snapUmpire.docs[0].data() } as Tournament;
-      console.log("Umpire PIN matched tournament:", t.name);
-      setSelectedTournament(t);
-      setView('umpire');
-      return;
-    }
-
-    // Check audience PIN
-    const qAudience = query(collection(db, 'tournaments'), where('audiencePin', '==', pin), limit(1));
-    const snapAudience = await getDocs(qAudience);
-    if (!snapAudience.empty) {
-      const t = { id: snapAudience.docs[0].id, ...snapAudience.docs[0].data() } as Tournament;
-      console.log("Audience PIN matched tournament:", t.name);
-      setSelectedTournament(t);
-      setView('audience');
-      return;
-    }
-
-    // Fallback for legacy PIN
-    const qLegacy = query(collection(db, 'tournaments'), where('pin', '==', pin), limit(1));
-    const snapLegacy = await getDocs(qLegacy);
-    if (!snapLegacy.empty) {
-      const t = { id: snapLegacy.docs[0].id, ...snapLegacy.docs[0].data() } as Tournament;
-      console.log("Legacy PIN matched tournament:", t.name);
-      setTempTournament(t);
-      return;
-    }
+      if (!snapUmpire.empty) {
+        const t = { id: snapUmpire.docs[0].id, ...snapUmpire.docs[0].data() } as Tournament;
+        console.log("Umpire PIN matched tournament:", t.name);
+        setSelectedTournamentId(t.id!);
+        setTempTournament(t);
+        setView('umpire');
+        return;
+      }
+  
+      // Check audience PIN
+      const qAudience = query(collection(db, 'tournaments'), where('audiencePin', '==', pin), limit(1));
+      const snapAudience = await getDocs(qAudience);
+      if (!snapAudience.empty) {
+        const t = { id: snapAudience.docs[0].id, ...snapAudience.docs[0].data() } as Tournament;
+        console.log("Audience PIN matched tournament:", t.name);
+        setSelectedTournamentId(t.id!);
+        setTempTournament(t);
+        setView('audience');
+        return;
+      }
+  
+      // Fallback for legacy PIN
+      const qLegacy = query(collection(db, 'tournaments'), where('pin', '==', pin), limit(1));
+      const snapLegacy = await getDocs(qLegacy);
+      if (!snapLegacy.empty) {
+        const t = { id: snapLegacy.docs[0].id, ...snapLegacy.docs[0].data() } as Tournament;
+        console.log("Legacy PIN matched tournament:", t.name);
+        setSelectedTournamentId(t.id!);
+        setTempTournament(t);
+        return;
+      }
 
     console.warn("Invalid PIN entered:", pin);
     alert("Invalid PIN. Please check the PIN and try again.");
   };
 
   const selectTournamentAsOrganizer = (t: Tournament) => {
+    if (user && t.organizerId === user.uid) {
+      setSelectedTournamentId(t.id!);
+      setView('organizer');
+      return;
+    }
+
     setPinPrompt({
       t,
       callback: () => {
-        setSelectedTournament(t);
+        setSelectedTournamentId(t.id!);
         setView('organizer');
         setPinPrompt(null);
       }
@@ -771,8 +782,11 @@ export default function App() {
       audiencePin: Math.random().toString(36).substring(2, 8).toUpperCase(),
       createdAt: new Date().toISOString(),
     };
-    await addDoc(collection(db, 'tournaments'), newTournament);
+    const docRef = await addDoc(collection(db, 'tournaments'), newTournament);
     form.reset();
+    const createdTournament = { id: docRef.id, ...newTournament };
+    setTempTournament(createdTournament);
+    setSelectedTournamentId(docRef.id);
     addNotification("Tournament created successfully!", "success");
   };
 
@@ -983,7 +997,7 @@ export default function App() {
           onJoin={handleJoinByPin} 
           tempTournament={tempTournament}
           onSelectRole={(role) => {
-            setSelectedTournament(tempTournament);
+            setSelectedTournamentId(tempTournament?.id || null);
             setView(role);
             setTempTournament(null);
           }}
@@ -994,7 +1008,7 @@ export default function App() {
     }
 
     if (view === 'audience' && selectedTournament) {
-      return <AudienceView tournamentId={selectedTournament.id!} onBack={() => { setView('login'); setSelectedTournament(null); }} />;
+      return <AudienceView tournamentId={selectedTournament.id!} onBack={() => { setView('login'); setSelectedTournamentId(null); }} />;
     }
 
     if (activeMatchId && selectedTournament) {
@@ -1006,7 +1020,7 @@ export default function App() {
         {/* Header */}
         <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
           <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSelectedTournament(null)}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setSelectedTournamentId(null); setTempTournament(null); }}>
               <div className="bg-blue-600 p-1.5 rounded-lg">
                 <Trophy className="w-5 h-5 text-white" />
               </div>
@@ -1128,7 +1142,7 @@ export default function App() {
               matches={matches} 
               players={players}
               umpires={umpires}
-              onBack={() => setSelectedTournament(null)} 
+              onBack={() => { setSelectedTournamentId(null); setTempTournament(null); }} 
               onUmpireMatch={(id) => setActiveMatchId(id)}
               onCreateMatch={createMatch}
               onRegisterPlayer={registerPlayer}
@@ -1229,8 +1243,8 @@ function TournamentDashboard({
     <div className="space-y-6">
       <div className="flex items-center justify-between bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full">
-            <Plus className="w-5 h-5 rotate-45" />
+          <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full hover:bg-slate-100">
+            <ChevronDown className="w-5 h-5 rotate-90" />
           </Button>
           {tournament.logoUrl && (
             <img 
@@ -1257,8 +1271,8 @@ function TournamentDashboard({
             </div>
           </div>
           <Dialog>
-            <DialogTrigger render={<Button variant="outline" size="icon" className="rounded-full" />}>
-              <Settings className="w-4 h-4" />
+            <DialogTrigger render={<Button variant="outline" className="gap-2 rounded-xl border-slate-200 hover:bg-slate-50" />}>
+              <Settings className="w-4 h-4" /> Edit Details
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
@@ -1305,6 +1319,23 @@ function TournamentDashboard({
                   <Input name="venue" defaultValue={tournament.venue} required />
                 </div>
                 <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">Save Changes</Button>
+                
+                <div className="pt-6 border-t border-slate-100 mt-6">
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    className="w-full text-red-500 hover:bg-red-50 hover:text-red-600"
+                    onClick={async () => {
+                      if (window.confirm("Are you sure you want to delete this tournament? This action cannot be undone.")) {
+                        await deleteDoc(doc(db, 'tournaments', tournament.id!));
+                        addNotification("Tournament deleted", "info");
+                        onBack();
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Delete Tournament
+                  </Button>
+                </div>
               </form>
             </DialogContent>
           </Dialog>
