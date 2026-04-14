@@ -155,13 +155,15 @@ const LoginView = ({
                     </Button>
                   </div>
                   <div className="pt-4 text-center">
-                    <p className="text-[10px] text-slate-400 font-mono uppercase tracking-widest mb-1">Debug Info</p>
-                    <p className="text-xs text-slate-500 font-mono break-all bg-slate-100 p-2 rounded border border-slate-200">
-                      Domain: {window.location.hostname}
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-2">
-                      Add this domain to Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains
-                    </p>
+                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                      <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mb-1">Firebase Authorized Domain</p>
+                      <p className="text-xs text-slate-700 font-mono break-all font-bold">
+                        {window.location.hostname}
+                      </p>
+                      <p className="text-[9px] text-slate-400 mt-2 leading-tight">
+                        Copy this domain to Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains
+                      </p>
+                    </div>
                   </div>
                 </motion.div>
               ) : (
@@ -349,6 +351,14 @@ const LandingView = ({ onStart }: { onStart: () => void }) => {
             <a href="#" className="hover:text-blue-600">Privacy</a>
             <a href="#" className="hover:text-blue-600">Terms</a>
             <a href="#" className="hover:text-blue-600">Contact</a>
+          </div>
+        </div>
+        <div className="mt-8 pt-8 border-t border-slate-50 max-w-xs mx-auto">
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Firebase Authorized Domain</p>
+            <p className="text-xs text-slate-600 font-mono break-all font-bold">
+              {window.location.hostname}
+            </p>
           </div>
         </div>
       </footer>
