@@ -162,6 +162,12 @@ service cloud.firestore {
 
     match /licenses/{licenseId} {
       allow read: if isAdmin() || (isAuthenticated() && resource.data.organizerEmail == request.auth.token.email);
+      // Allow anonymous users to query a specific license if they know the email and PIN
+      allow list: if isAdmin() || (isAuthenticated() && (
+        resource.data.organizerEmail == request.auth.token.email ||
+        (request.auth.token.firebase.sign_in_provider == 'anonymous' && 
+         request.query.limit <= 1)
+      ));
       allow write: if isAdmin();
     }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Component } from 'react';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
-import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, User } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, User, signInAnonymously } from 'firebase/auth';
 import { collection, query, where, onSnapshot, doc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, limit, getDoc } from 'firebase/firestore';
 import { Tournament, Match, Umpire, Player, AppUser, License, Notification } from './types';
 import { Button } from './components/ui/button';
@@ -82,16 +82,22 @@ const LoginView = ({
   onJoin, 
   tempTournament, 
   onSelectRole,
-  onCancelJoin
+  onCancelJoin,
+  onLicenseLogin
 }: { 
   onLogin: () => void, 
   loginLoading: boolean,
   onJoin: (pin: string) => void,
   tempTournament: Tournament | null,
   onSelectRole: (role: 'umpire' | 'audience') => void,
-  onCancelJoin: () => void
+  onCancelJoin: () => void,
+  onLicenseLogin: (email: string, pin: string) => void
 }) => {
   const [pin, setPin] = useState('');
+  const [showLicenseForm, setShowLicenseForm] = useState(false);
+  const [licenseEmail, setLicenseEmail] = useState('');
+  const [licensePin, setLicensePin] = useState('');
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4">
       <motion.div 
@@ -119,21 +125,71 @@ const LoginView = ({
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-6"
                 >
-                  <Button 
-                    type="button"
-                    onClick={() => { console.log("Organizer Login button clicked"); onLogin(); }} 
-                    disabled={loginLoading}
-                    className="w-full h-12 text-lg font-medium bg-slate-900 hover:bg-slate-800 transition-all"
-                  >
-                    {loginLoading ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Logging in...
+                  {!showLicenseForm ? (
+                    <>
+                      <Button 
+                        type="button"
+                        onClick={() => { console.log("Organizer Login button clicked"); onLogin(); }} 
+                        disabled={loginLoading}
+                        className="w-full h-12 text-lg font-medium bg-slate-900 hover:bg-slate-800 transition-all"
+                      >
+                        {loginLoading ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            Logging in...
+                          </div>
+                        ) : (
+                          <><LogIn className="mr-2 h-5 w-5" /> Organizer Login</>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        type="button"
+                        className="w-full text-slate-500 text-xs hover:bg-slate-50"
+                        onClick={() => setShowLicenseForm(true)}
+                      >
+                        Login with License Email & PIN
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="space-y-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="text-center mb-2">
+                        <h4 className="font-bold text-slate-900">License Access</h4>
+                        <p className="text-[10px] text-slate-500">Enter your registered license details</p>
                       </div>
-                    ) : (
-                      <><LogIn className="mr-2 h-5 w-5" /> Organizer Login</>
-                    )}
-                  </Button>
+                      <Input 
+                        placeholder="Registered Email" 
+                        type="email"
+                        value={licenseEmail}
+                        onChange={(e) => setLicenseEmail(e.target.value)}
+                      />
+                      <Input 
+                        placeholder="Access PIN" 
+                        type="password"
+                        value={licensePin}
+                        onChange={(e) => setLicensePin(e.target.value)}
+                      />
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          type="button"
+                          className="flex-1" 
+                          onClick={() => setShowLicenseForm(false)}
+                        >
+                          Back
+                        </Button>
+                        <Button 
+                          type="button"
+                          className="flex-1 bg-blue-600 hover:bg-blue-700" 
+                          onClick={() => onLicenseLogin(licenseEmail, licensePin)}
+                          disabled={!licenseEmail || !licensePin}
+                        >
+                          Access
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-200"></span></div>
                     <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-slate-400">Or join as audience/umpire</span></div>
@@ -147,23 +203,13 @@ const LoginView = ({
                     />
                     <Button 
                       variant="outline" 
+                      type="button"
                       className="w-full h-12 text-slate-600 border-slate-200 hover:bg-slate-50"
                       onClick={() => onJoin(pin)}
                       disabled={!pin}
                     >
                       <Search className="mr-2 h-4 w-4" /> Join Tournament
                     </Button>
-                  </div>
-                  <div className="pt-4 text-center">
-                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
-                      <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mb-1">Firebase Authorized Domain</p>
-                      <p className="text-xs text-slate-700 font-mono break-all font-bold">
-                        {window.location.hostname}
-                      </p>
-                      <p className="text-[9px] text-slate-400 mt-2 leading-tight">
-                        Copy this domain to Firebase Console &gt; Authentication &gt; Settings &gt; Authorized domains
-                      </p>
-                    </div>
                   </div>
                 </motion.div>
               ) : (
@@ -353,14 +399,6 @@ const LandingView = ({ onStart }: { onStart: () => void }) => {
             <a href="#" className="hover:text-blue-600">Contact</a>
           </div>
         </div>
-        <div className="mt-8 pt-8 border-t border-slate-50 max-w-xs mx-auto">
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Firebase Authorized Domain</p>
-            <p className="text-xs text-slate-600 font-mono break-all font-bold">
-              {window.location.hostname}
-            </p>
-          </div>
-        </div>
       </footer>
     </div>
   );
@@ -447,29 +485,32 @@ export default function App() {
             const isNowValid = data.role === 'superadmin' || (data.licenseValidUntil && new Date(data.licenseValidUntil) > new Date());
             if (!isNowValid && data.role === 'organizer') {
               console.log("Checking for new registered license for existing organizer...");
-              const licenseSnap = await getDocs(query(
-                collection(db, 'licenses'), 
-                where('organizerEmail', '==', u.email),
-                where('status', '==', 'pending'),
-                limit(1)
-              ));
-              
-              if (!licenseSnap.empty) {
-                const licenseDoc = licenseSnap.docs[0];
-                const licenseData = licenseDoc.data() as License;
-                console.log("New license found, auto-activating...");
+              const userEmail = u.email || data.email;
+              if (userEmail) {
+                const licenseSnap = await getDocs(query(
+                  collection(db, 'licenses'), 
+                  where('organizerEmail', '==', userEmail),
+                  where('status', '==', 'pending'),
+                  limit(1)
+                ));
                 
-                await updateDoc(doc(db, 'users', u.uid), {
-                  licenseId: licenseDoc.id,
-                  licenseValidUntil: licenseData.validUntil
-                });
-                await updateDoc(doc(db, 'licenses', licenseDoc.id), {
-                  status: 'active',
-                  usedByUid: u.uid
-                });
-                
-                data = { ...data, licenseId: licenseDoc.id, licenseValidUntil: licenseData.validUntil };
-                addNotification("Your new license has been activated!", "success");
+                if (!licenseSnap.empty) {
+                  const licenseDoc = licenseSnap.docs[0];
+                  const licenseData = licenseDoc.data() as License;
+                  console.log("New license found, auto-activating...");
+                  
+                  await updateDoc(doc(db, 'users', u.uid), {
+                    licenseId: licenseDoc.id,
+                    licenseValidUntil: licenseData.validUntil
+                  });
+                  await updateDoc(doc(db, 'licenses', licenseDoc.id), {
+                    status: 'active',
+                    usedByUid: u.uid
+                  });
+                  
+                  data = { ...data, licenseId: licenseDoc.id, licenseValidUntil: licenseData.validUntil };
+                  addNotification("Your new license has been activated!", "success");
+                }
               }
             }
             setAppUser(data);
@@ -499,7 +540,7 @@ export default function App() {
               setAppUser(newUser);
               setView('superadmin');
               addNotification("Welcome, System Administrator.", "success");
-            } else {
+            } else if (u.email) {
               // Check for license matching the email
               const licenseSnap = await getDocs(query(
                 collection(db, 'licenses'), 
@@ -615,6 +656,62 @@ export default function App() {
       console.error("Login failed details:", error);
       addNotification(`Login failed: ${error.message || "Unknown error"}`, "warning");
       alert(`Login failed: ${error.message || "Unknown error"}. Please ensure popups are allowed and you are not in an incognito window that blocks third-party cookies.`);
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleLicenseLogin = async (email: string, pin: string) => {
+    setLoginLoading(true);
+    try {
+      console.log("Attempting license login for:", email);
+      // 1. Sign in anonymously to get a session
+      const authResult = await signInAnonymously(auth);
+      const u = authResult.user;
+      
+      // 2. Query for the license
+      const q = query(
+        collection(db, 'licenses'), 
+        where('organizerEmail', '==', email),
+        where('accessPin', '==', pin),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        const licenseDoc = snap.docs[0];
+        const licenseData = licenseDoc.data() as License;
+        
+        // 3. Create/Update user profile
+        const newUser: AppUser = {
+          uid: u.uid,
+          email: email,
+          role: 'organizer',
+          licenseId: licenseDoc.id,
+          licenseValidUntil: licenseData.validUntil
+        };
+        
+        await setDoc(doc(db, 'users', u.uid), newUser);
+        
+        // 4. Update license status if it was pending
+        if (licenseData.status === 'pending') {
+          await updateDoc(doc(db, 'licenses', licenseDoc.id), {
+            status: 'active',
+            usedByUid: u.uid
+          });
+        }
+        
+        setAppUser(newUser);
+        setView('organizer');
+        addNotification("License verified! Welcome back.", "success");
+      } else {
+        await auth.signOut();
+        addNotification("Invalid Email or PIN. Please check your credentials.", "warning");
+        alert("Invalid Email or PIN. Please ensure you are using the registered email and the correct access PIN.");
+      }
+    } catch (error: any) {
+      console.error("License login failed:", error);
+      addNotification(`Login failed: ${error.message}`, "warning");
     } finally {
       setLoginLoading(false);
     }
@@ -902,6 +999,7 @@ export default function App() {
             setTempTournament(null);
           }}
           onCancelJoin={() => setTempTournament(null)}
+          onLicenseLogin={handleLicenseLogin}
         />
       );
     }
