@@ -125,70 +125,59 @@ const LoginView = ({
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-6"
                 >
-                  {!showLicenseForm ? (
-                    <>
+                  <div className="space-y-4 p-5 bg-slate-50 rounded-2xl border border-slate-100 shadow-inner">
+                    <div className="text-center mb-2">
+                      <h4 className="font-bold text-slate-900">Organizer Access</h4>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-widest">License Credentials</p>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Registered Email</label>
+                        <Input 
+                          placeholder="email@example.com" 
+                          type="email"
+                          className="h-11 bg-white"
+                          value={licenseEmail}
+                          onChange={(e) => setLicenseEmail(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Access PIN</label>
+                        <Input 
+                          placeholder="••••••" 
+                          type="password"
+                          className="h-11 bg-white"
+                          value={licensePin}
+                          onChange={(e) => setLicensePin(e.target.value)}
+                        />
+                      </div>
                       <Button 
                         type="button"
-                        onClick={() => { console.log("Organizer Login button clicked"); onLogin(); }} 
-                        disabled={loginLoading}
-                        className="w-full h-12 text-lg font-medium bg-slate-900 hover:bg-slate-800 transition-all"
+                        className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-100 mt-2" 
+                        onClick={() => onLicenseLogin(licenseEmail, licensePin)}
+                        disabled={loginLoading || !licenseEmail || !licensePin}
                       >
                         {loginLoading ? (
                           <div className="flex items-center gap-2">
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Logging in...
+                            Verifying...
                           </div>
                         ) : (
-                          <><LogIn className="mr-2 h-5 w-5" /> Organizer Login</>
+                          "Login as Organizer"
                         )}
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        type="button"
-                        className="w-full text-slate-500 text-xs hover:bg-slate-50"
-                        onClick={() => setShowLicenseForm(true)}
-                      >
-                        Login with License Email & PIN
-                      </Button>
-                    </>
-                  ) : (
-                    <div className="space-y-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                      <div className="text-center mb-2">
-                        <h4 className="font-bold text-slate-900">License Access</h4>
-                        <p className="text-[10px] text-slate-500">Enter your registered license details</p>
-                      </div>
-                      <Input 
-                        placeholder="Registered Email" 
-                        type="email"
-                        value={licenseEmail}
-                        onChange={(e) => setLicenseEmail(e.target.value)}
-                      />
-                      <Input 
-                        placeholder="Access PIN" 
-                        type="password"
-                        value={licensePin}
-                        onChange={(e) => setLicensePin(e.target.value)}
-                      />
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="ghost" 
-                          type="button"
-                          className="flex-1" 
-                          onClick={() => setShowLicenseForm(false)}
-                        >
-                          Back
-                        </Button>
-                        <Button 
-                          type="button"
-                          className="flex-1 bg-blue-600 hover:bg-blue-700" 
-                          onClick={() => onLicenseLogin(licenseEmail, licensePin)}
-                          disabled={!licenseEmail || !licensePin}
-                        >
-                          Access
-                        </Button>
-                      </div>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="text-center">
+                    <button 
+                      type="button"
+                      className="text-[10px] text-slate-400 hover:text-blue-600 transition-colors font-medium underline underline-offset-4"
+                      onClick={onLogin}
+                    >
+                      System Administrator Login (Google)
+                    </button>
+                  </div>
 
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-200"></span></div>
