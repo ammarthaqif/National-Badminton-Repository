@@ -684,8 +684,8 @@ export default function App() {
         
         await setDoc(doc(db, 'users', u.uid), newUser);
         
-        // 4. Update license status if it was pending
-        if (licenseData.status === 'pending') {
+        // 4. Update license status if it was pending or usedByUid was different
+        if (licenseData.status === 'pending' || licenseData.usedByUid !== u.uid) {
           await updateDoc(doc(db, 'licenses', licenseDoc.id), {
             status: 'active',
             usedByUid: u.uid

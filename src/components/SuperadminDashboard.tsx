@@ -8,40 +8,62 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Badge } from './ui/badge';
-import { Shield, Key, Users, Calendar, Plus, Search, CheckCircle, XCircle, Clock, Filter } from 'lucide-react';
+import { Shield, Key, Users, Calendar, Plus, Search, CheckCircle, XCircle, Clock, Filter, Trash2, Eye, Ban, Trophy } from 'lucide-react';
+import { Tournament } from '../types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function SuperadminDashboard() {
   const [licenses, setLicenses] = useState<License[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'licenses' | 'users' | 'overview'>('overview');
+  const [activeTab, setActiveTab] = useState<'licenses' | 'users' | 'overview' | 'tournaments'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedOrganizerTournaments, setSelectedOrganizerTournaments] = useState<{email: string, tournaments: Tournament[]} | null>(null);
 
   useEffect(() => {
     console.log("SuperadminDashboard: Setting up listeners...");
     const unsubLicenses = onSnapshot(collection(db, 'licenses'), (snapshot) => {
-      console.log(`SuperadminDashboard: Received ${snapshot.docs.length} licenses`);
       setLicenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as License)));
-    }, (error) => {
-      console.error("SuperadminDashboard: License fetch error", error);
-      handleFirestoreError(error, OperationType.LIST, 'licenses');
     });
 
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      console.log(`SuperadminDashboard: Received ${snapshot.docs.length} users`);
       setUsers(snapshot.docs.map(doc => ({ ...doc.data() } as AppUser)));
-    }, (error) => {
-      console.error("SuperadminDashboard: User fetch error", error);
-      handleFirestoreError(error, OperationType.LIST, 'users');
+    });
+
+    const unsubTournaments = onSnapshot(collection(db, 'tournaments'), (snapshot) => {
+      setTournaments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tournament)));
     });
 
     setLoading(false);
     return () => {
       unsubLicenses();
       unsubUsers();
+      unsubTournaments();
     };
   }, []);
+
+  const revokeLicense = async (licenseId: string, userId?: string) => {
+    if (!window.confirm("Are you sure you want to revoke this license? The organizer will lose access immediately.")) return;
+    
+    try {
+      await updateDoc(doc(db, 'licenses', licenseId), {
+        status: 'expired',
+        validUntil: new Date(0).toISOString() // Set to epoch to ensure it's expired
+      });
+
+      if (userId) {
+        await updateDoc(doc(db, 'users', userId), {
+          licenseValidUntil: new Date(0).toISOString()
+        });
+      }
+      alert("License revoked successfully.");
+    } catch (error) {
+      console.error("Error revoking license:", error);
+      alert("Failed to revoke license.");
+    }
+  };
 
   const generateLicense = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -141,10 +163,10 @@ export default function SuperadminDashboard() {
             className="rounded-lg"
           >Licenses</Button>
           <Button 
-            variant={activeTab === 'users' ? 'default' : 'ghost'} 
-            onClick={() => setActiveTab('users')}
+            variant={activeTab === 'tournaments' ? 'default' : 'ghost'} 
+            onClick={() => setActiveTab('tournaments')}
             className="rounded-lg"
-          >Organizers</Button>
+          >Tournaments</Button>
         </div>
       </header>
 
@@ -183,13 +205,13 @@ export default function SuperadminDashboard() {
             </Card>
             <Card className="border-none shadow-sm bg-white">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider">Pending Activation</CardTitle>
-                <div className="text-4xl font-black text-slate-900">{licenses.filter(l => l.status === 'pending').length}</div>
+                <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider">Total Tournaments</CardTitle>
+                <div className="text-4xl font-black text-slate-900">{tournaments.length}</div>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-slate-500 text-xs">
-                  <Clock className="w-4 h-4 text-orange-500" />
-                  Awaiting organizer login
+                  <Trophy className="w-4 h-4 text-blue-500" />
+                  Events created across platform
                 </div>
               </CardContent>
             </Card>
@@ -280,12 +302,82 @@ export default function SuperadminDashboard() {
                         {new Date(l.validUntil).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={l.status === 'active' ? 'default' : l.status === 'expired' ? 'destructive' : 'secondary'}>
-                          {l.status}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={l.status === 'active' ? 'default' : l.status === 'expired' ? 'destructive' : 'secondary'}>
+                            {l.status}
+                          </Badge>
+                          {l.status === 'active' && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                              onClick={() => revokeLicense(l.id!, l.usedByUid)}
+                              title="Revoke License"
+                            >
+                              <Ban className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
+                </TableBody>
+              </Table>
+            </Card>
+          </motion.div>
+        )}
+
+        {activeTab === 'tournaments' && (
+          <motion.div 
+            key="tournaments"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="flex items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+              <Search className="w-5 h-5 text-slate-400" />
+              <Input 
+                placeholder="Search tournaments or venues..." 
+                className="border-none shadow-none focus-visible:ring-0"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <Card className="border-none shadow-sm overflow-hidden bg-white">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50/50">
+                    <TableHead>Tournament Name</TableHead>
+                    <TableHead>Organizer</TableHead>
+                    <TableHead>Venue</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Courts</TableHead>
+                    <TableHead>PINs</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tournaments
+                    .filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()) || t.venue.toLowerCase().includes(searchQuery.toLowerCase()))
+                    .map((t) => {
+                      const organizer = users.find(u => u.uid === t.organizerId);
+                      return (
+                        <TableRow key={t.id}>
+                          <TableCell className="font-bold">{t.name}</TableCell>
+                          <TableCell className="text-xs">{organizer?.email || 'Unknown'}</TableCell>
+                          <TableCell className="text-xs">{t.venue}</TableCell>
+                          <TableCell className="text-xs">{t.date}</TableCell>
+                          <TableCell className="text-center">{t.numCourts}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="outline" className="text-[10px] font-mono">U: {t.umpirePin}</Badge>
+                              <Badge variant="outline" className="text-[10px] font-mono">A: {t.audiencePin}</Badge>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                 </TableBody>
               </Table>
             </Card>
@@ -337,11 +429,63 @@ export default function SuperadminDashboard() {
                           </span>
                         ) : 'N/A'}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-8 gap-1"
+                            onClick={() => {
+                              const orgTournaments = tournaments.filter(t => t.organizerId === u.uid);
+                              setSelectedOrganizerTournaments({ email: u.email, tournaments: orgTournaments });
+                            }}
+                          >
+                            <Eye className="w-3.5 h-3.5" /> View Events
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </Card>
+
+            <Dialog open={!!selectedOrganizerTournaments} onOpenChange={() => setSelectedOrganizerTournaments(null)}>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>Tournaments by {selectedOrganizerTournaments?.email}</DialogTitle>
+                </DialogHeader>
+                <div className="mt-4 max-h-[60vh] overflow-y-auto">
+                  {selectedOrganizerTournaments?.tournaments.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400">
+                      <Trophy className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                      <p>No tournaments created yet.</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Tournament</TableHead>
+                          <TableHead>Venue</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Courts</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedOrganizerTournaments?.tournaments.map(t => (
+                          <TableRow key={t.id}>
+                            <TableCell className="font-bold">{t.name}</TableCell>
+                            <TableCell>{t.venue}</TableCell>
+                            <TableCell>{t.date}</TableCell>
+                            <TableCell>{t.numCourts}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
           </motion.div>
         )}
       </AnimatePresence>
