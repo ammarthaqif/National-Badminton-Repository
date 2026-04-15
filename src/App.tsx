@@ -1237,7 +1237,20 @@ function TournamentDashboard({
   const [playerSearch, setPlayerSearch] = useState('');
   const [editingCourt, setEditingCourt] = useState<number | null>(null);
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(tournament.logoUrl || null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const logoUploadRef = React.useRef<HTMLInputElement>(null);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -1289,7 +1302,7 @@ function TournamentDashboard({
                     date: fd.get('date') as string,
                     venue: fd.get('venue') as string,
                     numCourts: Number(fd.get('courts')),
-                    logoUrl: fd.get('logoUrl') as string
+                    logoUrl: logoPreview || fd.get('logoUrl') as string
                   });
                   addNotification("Settings updated successfully!", "success");
                 }} 
@@ -1300,9 +1313,55 @@ function TournamentDashboard({
                   <Input name="name" defaultValue={tournament.name} required />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Tournament Logo URL</label>
-                  <Input name="logoUrl" defaultValue={tournament.logoUrl} placeholder="https://example.com/logo.png" />
-                  <p className="text-[10px] text-slate-400 italic">Provide a URL for the tournament logo or banner</p>
+                  <label className="text-sm font-medium">Tournament Logo</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden bg-slate-50">
+                      {logoPreview ? (
+                        <img src={logoPreview} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <Trophy className="w-6 h-6 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <Input 
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        ref={logoUploadRef}
+                        onChange={handleLogoUpload}
+                      />
+                      <div className="flex gap-2">
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => logoUploadRef.current?.click()}
+                        >
+                          Upload File
+                        </Button>
+                        {logoPreview && (
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-red-500"
+                            onClick={() => setLogoPreview(null)}
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                      <Input 
+                        name="logoUrl" 
+                        placeholder="Or paste image URL..." 
+                        defaultValue={tournament.logoUrl}
+                        onChange={(e) => setLogoPreview(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 italic">Upload a logo or provide a direct image link</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">

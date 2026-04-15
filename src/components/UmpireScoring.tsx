@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, getDoc } from 'firebase/firestore';
 import { Match } from '../types';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { Input } from './ui/input';
+import { ArrowLeft, RotateCcw, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from './ui/dialog';
 
 interface UmpireScoringProps {
   matchId: string;
@@ -17,6 +19,7 @@ interface UmpireScoringProps {
 export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireScoringProps) {
   const [match, setMatch] = useState<Match | null>(null);
   const [undoStack, setUndoStack] = useState<Partial<Match>[]>([]);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, `tournaments/${tournamentId}/matches/${matchId}`), (snapshot) => {
@@ -33,13 +36,19 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
     if (!match) return;
     
     // Save state for undo
-    setUndoStack(prev => [...prev, { score1: match.score1, score2: match.score2, server: match.server, sets: [...match.sets] }]);
+    setUndoStack(prev => [...prev, { 
+      score1: match.score1, 
+      score2: match.score2, 
+      server: match.server, 
+      sets: [...match.sets],
+      currentSet: match.currentSet
+    }]);
 
     const matchRef = doc(db, `tournaments/${tournamentId}/matches/${matchId}`);
     let newScore1 = player === 1 ? match.score1 + amount : match.score1;
     let newScore2 = player === 2 ? match.score2 + amount : match.score2;
 
-    // Basic Badminton Logic: Server changes on point win if it was opponent's serve
+    // Basic Badminton Logic: Server changes on point win
     let newServer = match.server;
     if (player === 1) newServer = 'p1';
     if (player === 2) newServer = 'p2';
@@ -54,16 +63,22 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
 
     if (isSetOver(newScore1, newScore2)) {
       const newSets = [...match.sets, { s1: newScore1, s2: newScore2 }];
+      const isMatchOver = newSets.length >= 2 && (
+        (newSets.filter(s => s.s1 > s.s2).length >= 2) || 
+        (newSets.filter(s => s.s2 > s.s1).length >= 2)
+      );
+
       await updateDoc(matchRef, {
         score1: 0,
         score2: 0,
         sets: newSets,
         currentSet: match.currentSet + 1,
-        status: newSets.length >= 2 && (
-          (newSets.filter(s => s.s1 > s.s2).length >= 2) || 
-          (newSets.filter(s => s.s2 > s.s1).length >= 2)
-        ) ? 'completed' : 'ongoing'
+        status: isMatchOver ? 'completed' : 'ongoing'
       });
+      
+      if (isMatchOver) {
+        setShowEndConfirm(true);
+      }
       return;
     }
 
@@ -72,6 +87,46 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
       score2: Math.max(0, newScore2),
       server: newServer,
       status: 'ongoing'
+    });
+  };
+
+  const manualScoreUpdate = async (player: 1 | 2, value: string) => {
+    if (!match) return;
+    const score = parseInt(value) || 0;
+    
+    setUndoStack(prev => [...prev, { 
+      score1: match.score1, 
+      score2: match.score2, 
+      server: match.server, 
+      sets: [...match.sets],
+      currentSet: match.currentSet
+    }]);
+
+    const matchRef = doc(db, `tournaments/${tournamentId}/matches/${matchId}`);
+    await updateDoc(matchRef, {
+      [player === 1 ? 'score1' : 'score2']: Math.max(0, score)
+    });
+  };
+
+  const nextSetManually = async () => {
+    if (!match) return;
+    
+    setUndoStack(prev => [...prev, { 
+      score1: match.score1, 
+      score2: match.score2, 
+      server: match.server, 
+      sets: [...match.sets],
+      currentSet: match.currentSet
+    }]);
+
+    const matchRef = doc(db, `tournaments/${tournamentId}/matches/${matchId}`);
+    const newSets = [...match.sets, { s1: match.score1, s2: match.score2 }];
+    
+    await updateDoc(matchRef, {
+      score1: 0,
+      score2: 0,
+      sets: newSets,
+      currentSet: match.currentSet + 1
     });
   };
 
@@ -124,13 +179,29 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
           onClick={() => updateScore(1, 1)}
         >
           {match.server === 'p1' && (
-            <motion.div layoutId="server" className="absolute top-8 bg-yellow-400 text-slate-900 px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase">
+            <motion.div layoutId="server" className="absolute top-8 bg-yellow-400 text-slate-900 px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase shadow-lg">
               Serving
             </motion.div>
           )}
           <div className="text-center space-y-4">
-            <h3 className="text-2xl font-bold opacity-60 uppercase tracking-widest">{match.player1}</h3>
-            <div className="text-[15vw] font-black leading-none tabular-nums drop-shadow-2xl">{match.score1}</div>
+            <h3 className={cn(
+              "text-2xl font-bold uppercase tracking-widest transition-opacity",
+              match.server === 'p1' ? "opacity-100 text-blue-400" : "opacity-60"
+            )}>
+              {match.player1}
+              {match.server === 'p1' && <span className="ml-2 text-yellow-400">●</span>}
+            </h3>
+            <div className="flex flex-col items-center gap-4">
+              <div className="text-[15vw] font-black leading-none tabular-nums drop-shadow-2xl">{match.score1}</div>
+              <div onClick={(e) => e.stopPropagation()}>
+                <Input 
+                  type="number" 
+                  className="w-20 h-10 bg-white/5 border-white/10 text-center text-xl font-bold"
+                  value={match.score1}
+                  onChange={(e) => manualScoreUpdate(1, e.target.value)}
+                />
+              </div>
+            </div>
           </div>
           <div className="absolute bottom-8 text-white/20 text-xs uppercase tracking-[0.3em]">Tap to add point</div>
         </div>
@@ -149,42 +220,120 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
           onClick={() => updateScore(2, 1)}
         >
           {match.server === 'p2' && (
-            <motion.div layoutId="server" className="absolute top-8 bg-yellow-400 text-slate-900 px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase">
+            <motion.div layoutId="server" className="absolute top-8 bg-yellow-400 text-slate-900 px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase shadow-lg">
               Serving
             </motion.div>
           )}
           <div className="text-center space-y-4">
-            <h3 className="text-2xl font-bold opacity-60 uppercase tracking-widest">{match.player2}</h3>
-            <div className="text-[15vw] font-black leading-none tabular-nums drop-shadow-2xl">{match.score2}</div>
+            <h3 className={cn(
+              "text-2xl font-bold uppercase tracking-widest transition-opacity",
+              match.server === 'p2' ? "opacity-100 text-red-400" : "opacity-60"
+            )}>
+              {match.player2}
+              {match.server === 'p2' && <span className="ml-2 text-yellow-400">●</span>}
+            </h3>
+            <div className="flex flex-col items-center gap-4">
+              <div className="text-[15vw] font-black leading-none tabular-nums drop-shadow-2xl">{match.score2}</div>
+              <div onClick={(e) => e.stopPropagation()}>
+                <Input 
+                  type="number" 
+                  className="w-20 h-10 bg-white/5 border-white/10 text-center text-xl font-bold"
+                  value={match.score2}
+                  onChange={(e) => manualScoreUpdate(2, e.target.value)}
+                />
+              </div>
+            </div>
           </div>
           <div className="absolute bottom-8 text-white/20 text-xs uppercase tracking-[0.3em]">Tap to add point</div>
         </div>
       </div>
 
       {/* Bottom Controls */}
-      <div className="h-20 border-t border-white/10 bg-slate-900/80 flex items-center justify-around px-4">
-        <Button variant="ghost" className="flex-col h-auto py-2 gap-1 text-white/60" onClick={() => updateScore(1, -1)}>
-          <span className="text-xs font-bold">-1 P1</span>
-        </Button>
-        <div className="flex items-center gap-8">
-          {match.sets.map((set, idx) => (
-            <div key={idx} className="text-center">
-              <p className="text-[10px] text-white/40 uppercase font-bold mb-1">Set {idx + 1}</p>
-              <p className="font-mono text-lg">{set.s1}-{set.s2}</p>
-            </div>
-          ))}
-          <Button className="bg-white text-slate-950 hover:bg-slate-200 font-bold px-8" onClick={endMatch}>
-            End Match
+      <div className="h-24 border-t border-white/10 bg-slate-900/80 flex items-center justify-around px-4">
+        <div className="flex flex-col gap-2">
+          <Button variant="ghost" className="flex-col h-auto py-2 gap-1 text-white/60" onClick={() => updateScore(1, -1)}>
+            <span className="text-xs font-bold">-1 P1</span>
           </Button>
-          <div className="text-center">
-            <p className="text-[10px] text-white/40 uppercase font-bold mb-1">Current</p>
-            <p className="font-mono text-lg">Set {match.currentSet}</p>
+          <Button variant="ghost" size="sm" className="text-[10px] text-white/40" onClick={() => {
+            const matchRef = doc(db, `tournaments/${tournamentId}/matches/${matchId}`);
+            updateDoc(matchRef, { server: 'p1' });
+          }}>Set Server P1</Button>
+        </div>
+
+        <div className="flex items-center gap-6">
+          <div className="flex gap-4">
+            {match.sets.map((set, idx) => (
+              <div key={idx} className="text-center bg-white/5 px-3 py-1 rounded-lg border border-white/5">
+                <p className="text-[10px] text-white/40 uppercase font-bold mb-0.5">Set {idx + 1}</p>
+                <p className="font-mono text-base font-bold">{set.s1}-{set.s2}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Button 
+              className="bg-white text-slate-950 hover:bg-slate-200 font-bold px-8 h-12" 
+              onClick={() => setShowEndConfirm(true)}
+            >
+              End Match
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-8 text-[10px] border-white/10 bg-transparent text-white/60 hover:bg-white/5"
+              onClick={nextSetManually}
+            >
+              <ChevronRight className="w-3 h-3 mr-1" /> Next Set Manually
+            </Button>
+          </div>
+
+          <div className="text-center bg-blue-600/20 px-4 py-2 rounded-xl border border-blue-500/30">
+            <p className="text-[10px] text-blue-400 uppercase font-bold mb-0.5">Current</p>
+            <p className="font-mono text-xl font-black">Set {match.currentSet}</p>
           </div>
         </div>
-        <Button variant="ghost" className="flex-col h-auto py-2 gap-1 text-white/60" onClick={() => updateScore(2, -1)}>
-          <span className="text-xs font-bold">-1 P2</span>
-        </Button>
+
+        <div className="flex flex-col gap-2">
+          <Button variant="ghost" className="flex-col h-auto py-2 gap-1 text-white/60" onClick={() => updateScore(2, -1)}>
+            <span className="text-xs font-bold">-1 P2</span>
+          </Button>
+          <Button variant="ghost" size="sm" className="text-[10px] text-white/40" onClick={() => {
+            const matchRef = doc(db, `tournaments/${tournamentId}/matches/${matchId}`);
+            updateDoc(matchRef, { server: 'p2' });
+          }}>Set Server P2</Button>
+        </div>
       </div>
+
+      <Dialog open={showEndConfirm} onOpenChange={setShowEndConfirm}>
+        <DialogContent className="bg-slate-900 border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <CheckCircle2 className="w-6 h-6 text-green-500" />
+              Match Completed?
+            </DialogTitle>
+            <DialogDescription className="text-white/60 text-lg pt-2">
+              Final Score: <span className="text-white font-bold">{match.score1} - {match.score2}</span> (Set {match.currentSet})
+              <br />
+              Are you sure you want to end this match and return to the dashboard?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-3 sm:justify-center pt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowEndConfirm(false)}
+              className="bg-transparent border-white/20 text-white hover:bg-white/10 h-12 px-8"
+            >
+              Continue Scoring
+            </Button>
+            <Button 
+              onClick={endMatch}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold h-12 px-8"
+            >
+              Confirm & Exit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -8,9 +8,10 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Badge } from './ui/badge';
-import { Shield, Key, Users, Calendar, Plus, Search, CheckCircle, XCircle, Clock, Filter, Trash2, Eye, Ban, Trophy } from 'lucide-react';
+import { Shield, Key, Users, Calendar, Plus, Search, CheckCircle, XCircle, Clock, Filter, Trash2, Eye, Ban, Trophy, QrCode } from 'lucide-react';
 import { Tournament } from '../types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './ui/dialog';
+import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function SuperadminDashboard() {
@@ -21,6 +22,8 @@ export default function SuperadminDashboard() {
   const [activeTab, setActiveTab] = useState<'licenses' | 'users' | 'overview' | 'tournaments'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrganizerTournaments, setSelectedOrganizerTournaments] = useState<{email: string, tournaments: Tournament[]} | null>(null);
+  const [licenseToRevoke, setLicenseToRevoke] = useState<{id: string, userId?: string, email: string} | null>(null);
+  const [selectedTournamentForQR, setSelectedTournamentForQR] = useState<Tournament | null>(null);
 
   useEffect(() => {
     console.log("SuperadminDashboard: Setting up listeners...");
@@ -45,8 +48,6 @@ export default function SuperadminDashboard() {
   }, []);
 
   const revokeLicense = async (licenseId: string, userId?: string) => {
-    if (!window.confirm("Are you sure you want to revoke this license? The organizer will lose access immediately.")) return;
-    
     try {
       await updateDoc(doc(db, 'licenses', licenseId), {
         status: 'expired',
@@ -58,6 +59,7 @@ export default function SuperadminDashboard() {
           licenseValidUntil: new Date(0).toISOString()
         });
       }
+      setLicenseToRevoke(null);
       alert("License revoked successfully.");
     } catch (error) {
       console.error("Error revoking license:", error);
@@ -187,14 +189,26 @@ export default function SuperadminDashboard() {
               <CardContent>
                 <div className="flex items-center gap-2 text-blue-100 text-xs">
                   <Users className="w-4 h-4" />
-                  Active system users
+                  Registered system users
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm bg-slate-900 text-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider">Total Tournaments</CardTitle>
+                <div className="text-4xl font-black">{tournaments.length}</div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 text-slate-400 text-xs">
+                  <Trophy className="w-4 h-4 text-blue-500" />
+                  Events created across platform
                 </div>
               </CardContent>
             </Card>
             <Card className="border-none shadow-sm bg-white">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider">Active Licenses</CardTitle>
-                <div className="text-4xl font-black text-slate-900">{licenses.filter(l => l.status === 'active').length}</div>
+                <div className="text-4xl font-black text-green-600">{licenses.filter(l => l.status === 'active').length}</div>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-slate-500 text-xs">
@@ -205,13 +219,25 @@ export default function SuperadminDashboard() {
             </Card>
             <Card className="border-none shadow-sm bg-white">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider">Total Tournaments</CardTitle>
-                <div className="text-4xl font-black text-slate-900">{tournaments.length}</div>
+                <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider">Expired Licenses</CardTitle>
+                <div className="text-4xl font-black text-red-600">{licenses.filter(l => l.status === 'expired').length}</div>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-slate-500 text-xs">
-                  <Trophy className="w-4 h-4 text-blue-500" />
-                  Events created across platform
+                  <XCircle className="w-4 h-4 text-red-500" />
+                  Revoked or timed out
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm bg-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider">Pending Activation</CardTitle>
+                <div className="text-4xl font-black text-orange-500">{licenses.filter(l => l.status === 'pending').length}</div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 text-slate-500 text-xs">
+                  <Clock className="w-4 h-4 text-orange-500" />
+                  Awaiting organizer login
                 </div>
               </CardContent>
             </Card>
@@ -311,7 +337,7 @@ export default function SuperadminDashboard() {
                               variant="ghost" 
                               size="icon" 
                               className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                              onClick={() => revokeLicense(l.id!, l.usedByUid)}
+                              onClick={() => setLicenseToRevoke({ id: l.id!, userId: l.usedByUid, email: l.organizerEmail })}
                               title="Revoke License"
                             >
                               <Ban className="w-4 h-4" />
@@ -355,6 +381,7 @@ export default function SuperadminDashboard() {
                     <TableHead>Date</TableHead>
                     <TableHead>Courts</TableHead>
                     <TableHead>PINs</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -375,12 +402,58 @@ export default function SuperadminDashboard() {
                               <Badge variant="outline" className="text-[10px] font-mono">A: {t.audiencePin}</Badge>
                             </div>
                           </TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 gap-1"
+                              onClick={() => setSelectedTournamentForQR(t)}
+                            >
+                              <QrCode className="w-3.5 h-3.5" /> Share
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
                 </TableBody>
               </Table>
             </Card>
+
+            <Dialog open={!!selectedTournamentForQR} onOpenChange={() => setSelectedTournamentForQR(null)}>
+              <DialogContent className="sm:max-w-2xl text-center">
+                <DialogHeader>
+                  <DialogTitle>Tournament Access: {selectedTournamentForQR?.name}</DialogTitle>
+                  <DialogDescription>Share these QR codes for instant access</DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-6">
+                  <div className="space-y-4 p-6 bg-blue-50 rounded-3xl border border-blue-100">
+                    <div className="flex items-center justify-center gap-2 text-blue-600 font-bold uppercase tracking-widest text-xs">
+                      <Shield className="w-4 h-4" /> Umpire Access
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl shadow-sm inline-block">
+                      <QRCodeSVG value={selectedTournamentForQR?.umpirePin || ''} size={180} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-mono font-black text-blue-600 tracking-widest">{selectedTournamentForQR?.umpirePin}</p>
+                      <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Umpire PIN</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 p-6 bg-green-50 rounded-3xl border border-green-100">
+                    <div className="flex items-center justify-center gap-2 text-green-600 font-bold uppercase tracking-widest text-xs">
+                      <Users className="w-4 h-4" /> Audience Access
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl shadow-sm inline-block">
+                      <QRCodeSVG value={selectedTournamentForQR?.audiencePin || ''} size={180} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-mono font-black text-green-600 tracking-widest">{selectedTournamentForQR?.audiencePin}</p>
+                      <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">Audience PIN</p>
+                    </div>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </motion.div>
         )}
 
@@ -483,6 +556,40 @@ export default function SuperadminDashboard() {
                       </TableBody>
                     </Table>
                   )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!licenseToRevoke} onOpenChange={(open) => !open && setLicenseToRevoke(null)}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-red-600">
+                    <Ban className="w-5 h-5" /> Revoke License
+                  </DialogTitle>
+                  <CardDescription className="pt-2">
+                    Are you sure you want to revoke the license for <strong className="text-slate-900">{licenseToRevoke?.email}</strong>?
+                  </CardDescription>
+                </DialogHeader>
+                <div className="bg-red-50 p-4 rounded-xl border border-red-100 mt-2">
+                  <p className="text-xs text-red-700 leading-relaxed">
+                    <strong>Warning:</strong> This action is immediate. The organizer will lose all access to their dashboard and tournaments. This cannot be undone easily.
+                  </p>
+                </div>
+                <div className="flex gap-3 mt-4">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1" 
+                    onClick={() => setLicenseToRevoke(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    className="flex-1"
+                    onClick={() => licenseToRevoke && revokeLicense(licenseToRevoke.id, licenseToRevoke.userId)}
+                  >
+                    Confirm Revocation
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
