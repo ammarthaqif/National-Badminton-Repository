@@ -44,6 +44,10 @@ export interface Match {
   sets: { s1: number; s2: number }[];
   currentSet: number;
   lastUpdated?: string;
+  stage?: 'group' | 'knockout';
+  groupName?: string;
+  roundName?: string;
+  category?: 'singles' | 'doubles' | 'mixed';
 }
 
 export interface Umpire {

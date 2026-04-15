@@ -9,9 +9,9 @@ import { Input } from './components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Badge } from './components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
-import { Trophy, Users, Layout, Play, CheckCircle, QrCode, LogIn, LogOut, Plus, Trash2, Smartphone, Monitor, Search, FileUp, Download, Settings, ChevronDown, ChevronUp, Key } from 'lucide-react';
+import { Trophy, Users, Layout, Play, CheckCircle, QrCode, LogIn, LogOut, Plus, Trash2, Smartphone, Monitor, Search, FileUp, Download, Settings, ChevronDown, ChevronUp, Key, Printer, FileSpreadsheet, Edit2, ListOrdered } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './components/ui/dialog';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -790,7 +790,16 @@ export default function App() {
     addNotification("Tournament created successfully!", "success");
   };
 
-  const createMatch = async (tournamentId: string, player1Id?: string, player2Id?: string, umpireId?: string) => {
+  const createMatch = async (
+    tournamentId: string, 
+    player1Id?: string, 
+    player2Id?: string, 
+    umpireId?: string,
+    stage: 'group' | 'knockout' = 'group',
+    groupName: string = '',
+    roundName: string = '',
+    category?: 'singles' | 'doubles' | 'mixed'
+  ) => {
     const p1 = players.find(p => p.id === player1Id);
     const p2 = players.find(p => p.id === player2Id);
     const ump = umpires.find(u => u.id === umpireId);
@@ -810,7 +819,11 @@ export default function App() {
       sets: [],
       currentSet: 1,
       umpireId: umpireId || "",
-      umpireName: ump?.name || ""
+      umpireName: ump?.name || "",
+      stage,
+      groupName,
+      roundName,
+      category: category || p1?.category || 'singles'
     };
     await addDoc(collection(db, `tournaments/${tournamentId}/matches`), newMatch);
   };
@@ -922,6 +935,101 @@ export default function App() {
         break;
       }
     }
+  };
+
+  const generateLeagueMatches = async (tournamentId: string, category: 'singles' | 'doubles' | 'mixed', groupSize: number) => {
+    const categoryPlayers = players.filter(p => p.category === category);
+    if (categoryPlayers.length < 2) {
+      addNotification("Not enough players in this category", "warning");
+      return;
+    }
+
+    const shuffled = [...categoryPlayers].sort(() => Math.random() - 0.5);
+    const groups: Player[][] = [];
+    for (let i = 0; i < shuffled.length; i += groupSize) {
+      groups.push(shuffled.slice(i, i + groupSize));
+    }
+
+    for (let gIdx = 0; gIdx < groups.length; gIdx++) {
+      const group = groups[gIdx];
+      const groupName = `Group ${String.fromCharCode(65 + gIdx)}`;
+      for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+          await createMatch(
+            tournamentId,
+            group[i].id!,
+            group[j].id!,
+            undefined,
+            'group',
+            groupName,
+            '',
+            category
+          );
+        }
+      }
+    }
+    addNotification(`Generated league matches for ${groups.length} groups`, "success");
+  };
+
+  const generateKnockoutStage = async (tournamentId: string, category: 'singles' | 'doubles' | 'mixed') => {
+    const categoryMatches = matches.filter(m => m.category === category && m.stage === 'group');
+    const categoryPlayers = players.filter(p => p.category === category);
+
+    if (categoryMatches.length === 0) {
+      addNotification("No group matches found for this category", "warning");
+      return;
+    }
+
+    if (categoryMatches.some(m => m.status !== 'completed')) {
+      addNotification("Some group matches are still ongoing", "warning");
+      return;
+    }
+
+    const standings: Record<string, { id: string, name: string, group: string, wins: number, points: number }> = {};
+    categoryPlayers.forEach(p => {
+      standings[p.id!] = { id: p.id!, name: p.name, group: '', wins: 0, points: 0 };
+    });
+
+    categoryMatches.forEach(m => {
+      if (m.player1Id && standings[m.player1Id]) standings[m.player1Id].group = m.groupName || '';
+      if (m.player2Id && standings[m.player2Id]) standings[m.player2Id].group = m.groupName || '';
+      
+      if (m.score1 > m.score2) {
+        if (m.player1Id) standings[m.player1Id].wins++;
+      } else if (m.score2 > m.score1) {
+        if (m.player2Id) standings[m.player2Id].wins++;
+      }
+      if (m.player1Id) standings[m.player1Id].points += m.score1;
+      if (m.player2Id) standings[m.player2Id].points += m.score2;
+    });
+
+    const groups: Record<string, typeof standings[string][]> = {};
+    Object.values(standings).forEach(s => {
+      if (!s.group) return;
+      if (!groups[s.group]) groups[s.group] = [];
+      groups[s.group].push(s);
+    });
+
+    Object.keys(groups).forEach(gName => {
+      groups[gName].sort((a, b) => b.wins - a.wins || b.points - a.points);
+    });
+
+    const winners = Object.keys(groups).sort().map(gName => groups[gName][0]).filter(Boolean);
+    const runnersUp = Object.keys(groups).sort().map(gName => groups[gName][1]).filter(Boolean);
+
+    if (winners.length < 2) {
+      addNotification("Not enough groups to generate knockout", "warning");
+      return;
+    }
+
+    for (let i = 0; i < winners.length; i++) {
+      const p1 = winners[i];
+      const p2 = runnersUp[(i + 1) % runnersUp.length];
+      if (p1 && p2 && p1.id !== p2.id) {
+        await createMatch(tournamentId, p1.id, p2.id, undefined, 'knockout', '', 'Quarter-final', category);
+      }
+    }
+    addNotification("Knockout matches generated!", "success");
   };
 
   const activateLicense = async (pin: string) => {
@@ -1151,6 +1259,8 @@ export default function App() {
               onToggleUmpireAvailability={toggleUmpireAvailability}
               onRenameCourt={renameCourt}
               onAutoSchedule={() => autoSchedule(selectedTournament.id!)}
+              onGenerateLeague={(cat, size) => generateLeagueMatches(selectedTournament.id!, cat, size)}
+              onGenerateKnockout={(cat) => generateKnockoutStage(selectedTournament.id!, cat)}
               addNotification={addNotification}
             />
           )}
@@ -1215,6 +1325,8 @@ function TournamentDashboard({
   onToggleUmpireAvailability,
   onRenameCourt,
   onAutoSchedule,
+  onGenerateLeague,
+  onGenerateKnockout,
   addNotification
 }: { 
   tournament: Tournament, 
@@ -1223,13 +1335,15 @@ function TournamentDashboard({
   umpires: Umpire[],
   onBack: () => void,
   onUmpireMatch: (id: string) => void,
-  onCreateMatch: (tId: string, p1Id?: string, p2Id?: string, uId?: string) => void,
+  onCreateMatch: (tId: string, p1Id?: string, p2Id?: string, uId?: string, stage?: 'group' | 'knockout', groupName?: string, roundName?: string, category?: 'singles' | 'doubles' | 'mixed') => void,
   onRegisterPlayer: (tId: string, name: string, category: 'singles' | 'doubles' | 'mixed') => void,
   onImportPlayers: (tId: string, file: File) => void,
   onRegisterUmpire: (tId: string, name: string) => void,
   onToggleUmpireAvailability: (tId: string, uId: string, current: boolean) => void,
   onRenameCourt: (tId: string, courtNum: number, name: string) => void,
   onAutoSchedule: () => void,
+  onGenerateLeague: (category: 'singles' | 'doubles' | 'mixed', groupSize: number) => void,
+  onGenerateKnockout: (category: 'singles' | 'doubles' | 'mixed') => void,
   addNotification: (message: string, type?: 'info' | 'success' | 'warning') => void
 }) {
   const [activeTab, setActiveTab] = useState('overview');
@@ -1238,6 +1352,8 @@ function TournamentDashboard({
   const [editingCourt, setEditingCourt] = useState<number | null>(null);
   const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(tournament.logoUrl || null);
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [showLeagueDialog, setShowLeagueDialog] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const logoUploadRef = React.useRef<HTMLInputElement>(null);
 
@@ -1250,6 +1366,80 @@ function TournamentDashboard({
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const exportToExcel = () => {
+    const matchData = matches.map(m => ({
+      Court: m.courtNumber,
+      Player1: m.player1,
+      Player2: m.player2,
+      Status: m.status,
+      Score: `${m.score1}-${m.score2}`,
+      Sets: m.sets.map(s => `${s.s1}-${s.s2}`).join(', ')
+    }));
+
+    const playerData = players.map(p => ({
+      Name: p.name,
+      Category: p.category,
+      Played: p.stats?.matchesPlayed || 0,
+      Wins: p.stats?.wins || 0,
+      Losses: p.stats?.losses || 0
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const wsMatches = XLSX.utils.json_to_sheet(matchData);
+    const wsPlayers = XLSX.utils.json_to_sheet(playerData);
+    XLSX.utils.book_append_sheet(wb, wsMatches, "Matches");
+    XLSX.utils.book_append_sheet(wb, wsPlayers, "Players");
+    XLSX.writeFile(wb, `${tournament.name}_Data.xlsx`);
+    addNotification("Data exported to Excel", "success");
+  };
+
+  const printSchedule = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const content = `
+      <html>
+        <head>
+          <title>${tournament.name} - Match Schedule</title>
+          <style>
+            body { font-family: sans-serif; padding: 40px; }
+            h1 { text-align: center; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            th { bg-color: #f8f9fa; }
+          </style>
+        </head>
+        <body>
+          <h1>${tournament.name} - Match Schedule</h1>
+          <p>Venue: ${tournament.venue} | Date: ${tournament.date}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Court</th>
+                <th>Match</th>
+                <th>Status</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${matches.map(m => `
+                <tr>
+                  <td>Court ${m.courtNumber}</td>
+                  <td>${m.player1} vs ${m.player2}</td>
+                  <td>${m.status}</td>
+                  <td>${m.score1}-${m.score2}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+    printWindow.document.write(content);
+    printWindow.document.close();
+    printWindow.print();
   };
 
   return (
@@ -1273,7 +1463,14 @@ function TournamentDashboard({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex gap-6 mr-4">
+          <div className="flex gap-2 mr-4">
+            <Button variant="outline" size="sm" onClick={exportToExcel} className="gap-2 h-9">
+              <FileSpreadsheet className="w-4 h-4" /> <span className="hidden sm:inline">Export</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={printSchedule} className="gap-2 h-9">
+              <Printer className="w-4 h-4" /> <span className="hidden sm:inline">Print</span>
+            </Button>
+            <div className="h-9 w-px bg-slate-200 mx-2" />
             <div className="text-right">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Umpire PIN</p>
               <p className="text-lg font-mono font-bold text-blue-600">{tournament.umpirePin || tournament.pin}</p>
@@ -1616,7 +1813,15 @@ function TournamentDashboard({
                             {tournament.courtNames?.[m.courtNumber] || `Court ${m.courtNumber}`}
                           </div>
                         </TableCell>
-                        <TableCell>{m.player1} vs {m.player2}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{m.player1} vs {m.player2}</div>
+                          {(m.groupName || m.roundName) && (
+                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1 mt-0.5">
+                              {m.stage === 'group' ? <Trophy className="w-2.5 h-2.5" /> : <Play className="w-2.5 h-2.5" />}
+                              {m.groupName || m.roundName}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell className="text-slate-500 text-xs">{m.umpireName || 'None'}</TableCell>
                         <TableCell>
                           <Badge variant={m.status === 'ongoing' ? 'default' : m.status === 'completed' ? 'secondary' : 'outline'}>
@@ -1770,6 +1975,52 @@ function TournamentDashboard({
                 <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                   <FileUp className="w-4 h-4 mr-2" /> Import Excel
                 </Button>
+                <Dialog open={showLeagueDialog} onOpenChange={setShowLeagueDialog}>
+                  <DialogTrigger render={<Button variant="outline" size="sm" className="gap-2" />}>
+                    <ListOrdered className="w-4 h-4" /> League Setup
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>League Grouping</DialogTitle>
+                      <DialogDescription>Automatically group players and generate round-robin matches</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Players per Group</label>
+                        <select id="groupSize" className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm">
+                          <option value="3">3 Players</option>
+                          <option value="4">4 Players</option>
+                          <option value="5">5 Players</option>
+                        </select>
+                      </div>
+                      <Button 
+                        className="w-full bg-blue-600" 
+                        onClick={() => {
+                          const size = parseInt((document.getElementById('groupSize') as HTMLSelectElement).value);
+                          onGenerateLeague(playerCategoryTab as any, size);
+                        }}
+                      >
+                        Generate Group Matches
+                      </Button>
+
+                      <div className="relative py-4">
+                        <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100" /></div>
+                        <div className="relative flex justify-center text-[10px] uppercase font-bold"><span className="bg-white px-2 text-slate-400">Next Stage</span></div>
+                      </div>
+
+                      <Button 
+                        variant="outline"
+                        className="w-full border-blue-200 text-blue-600 hover:bg-blue-50" 
+                        onClick={() => {
+                          onGenerateKnockout(playerCategoryTab as any);
+                          setShowLeagueDialog(false);
+                        }}
+                      >
+                        Generate Knockout Stage
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 <Dialog>
                   <DialogTrigger render={<Button size="sm" className="bg-slate-900" />}>
                     <Plus className="w-4 h-4 mr-2" /> Register Player
@@ -1859,9 +2110,45 @@ function TournamentDashboard({
                                 <Badge variant="secondary" className="bg-blue-50 text-blue-700">{winRate}%</Badge>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button variant="ghost" size="sm" onClick={() => deleteDoc(doc(db, `tournaments/${tournament.id}/players/${p.id}`))}>
-                                  <Trash2 className="w-4 h-4 text-red-500" />
-                                </Button>
+                                <div className="flex justify-end gap-2">
+                                  <Dialog>
+                                    <DialogTrigger render={<Button variant="ghost" size="sm" className="h-8 w-8 p-0" />}>
+                                      <Edit2 className="w-4 h-4 text-slate-400" />
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Edit Player</DialogTitle>
+                                      </DialogHeader>
+                                      <form onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        const fd = new FormData(e.currentTarget);
+                                        const pRef = doc(db, `tournaments/${tournament.id}/players/${p.id}`);
+                                        await updateDoc(pRef, {
+                                          name: fd.get('name') as string,
+                                          category: fd.get('category') as any
+                                        });
+                                        addNotification("Player updated", "success");
+                                      }} className="space-y-4 pt-4">
+                                        <div className="space-y-2">
+                                          <label className="text-sm font-medium">Player Name</label>
+                                          <Input name="name" defaultValue={p.name} required />
+                                        </div>
+                                        <div className="space-y-2">
+                                          <label className="text-sm font-medium">Category</label>
+                                          <select name="category" defaultValue={p.category} className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm" required>
+                                            <option value="singles">Singles</option>
+                                            <option value="doubles">Doubles</option>
+                                            <option value="mixed">Mixed</option>
+                                          </select>
+                                        </div>
+                                        <Button type="submit" className="w-full">Save Changes</Button>
+                                      </form>
+                                    </DialogContent>
+                                  </Dialog>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => deleteDoc(doc(db, `tournaments/${tournament.id}/players/${p.id}`))}>
+                                    <Trash2 className="w-4 h-4 text-red-500" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           );

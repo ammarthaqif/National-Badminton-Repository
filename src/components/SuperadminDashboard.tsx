@@ -8,7 +8,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Badge } from './ui/badge';
-import { Shield, Key, Users, Calendar, Plus, Search, CheckCircle, XCircle, Clock, Filter, Trash2, Eye, Ban, Trophy, QrCode } from 'lucide-react';
+import { Shield, Key, Users, Calendar, Plus, Search, CheckCircle, XCircle, Clock, Filter, Trash2, Eye, Ban, Trophy, QrCode, LogOut, ChevronDown, ChevronUp } from 'lucide-react';
 import { Tournament } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './ui/dialog';
 import { QRCodeSVG } from 'qrcode.react';
@@ -21,7 +21,7 @@ export default function SuperadminDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'licenses' | 'users' | 'overview' | 'tournaments'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedOrganizerTournaments, setSelectedOrganizerTournaments] = useState<{email: string, tournaments: Tournament[]} | null>(null);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [licenseToRevoke, setLicenseToRevoke] = useState<{id: string, userId?: string, email: string} | null>(null);
   const [selectedTournamentForQR, setSelectedTournamentForQR] = useState<Tournament | null>(null);
 
@@ -169,6 +169,21 @@ export default function SuperadminDashboard() {
             onClick={() => setActiveTab('tournaments')}
             className="rounded-lg"
           >Tournaments</Button>
+          <Button 
+            variant={activeTab === 'users' ? 'default' : 'ghost'} 
+            onClick={() => setActiveTab('users')}
+            className="rounded-lg"
+          >Organizers</Button>
+          <div className="w-px bg-slate-200 mx-1 my-1" />
+          <Button 
+            variant="ghost" 
+            onClick={() => {
+              import('../firebase').then(m => m.auth.signOut());
+            }}
+            className="rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50"
+          >
+            <LogOut className="w-4 h-4 mr-2" /> Logout
+          </Button>
         </div>
       </header>
 
@@ -486,79 +501,87 @@ export default function SuperadminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((u) => (
-                    <TableRow key={u.uid}>
-                      <TableCell className="font-medium">{u.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={u.role === 'superadmin' ? 'destructive' : 'default'}>
-                          {u.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-500 font-mono">{u.licenseId || 'None'}</TableCell>
-                      <TableCell className="text-xs">
-                        {u.licenseValidUntil ? (
-                          <span className={new Date(u.licenseValidUntil) < new Date() ? 'text-red-500 font-bold' : 'text-green-600'}>
-                            {new Date(u.licenseValidUntil).toLocaleDateString()}
-                          </span>
-                        ) : 'N/A'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            className="h-8 gap-1"
-                            onClick={() => {
-                              const orgTournaments = tournaments.filter(t => t.organizerId === u.uid);
-                              setSelectedOrganizerTournaments({ email: u.email, tournaments: orgTournaments });
-                            }}
-                          >
-                            <Eye className="w-3.5 h-3.5" /> View Events
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredUsers.map((u) => {
+                    const orgTournaments = tournaments.filter(t => t.organizerId === u.uid);
+                    const isExpanded = expandedUserId === u.uid;
+
+                    return (
+                      <React.Fragment key={u.uid}>
+                        <TableRow 
+                          className="cursor-pointer hover:bg-slate-50 transition-colors"
+                          onClick={() => setExpandedUserId(isExpanded ? null : u.uid)}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                              {u.email}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={u.role === 'superadmin' ? 'destructive' : 'default'}>
+                              {u.role}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-500 font-mono">{u.licenseId || 'None'}</TableCell>
+                          <TableCell className="text-xs">
+                            {u.licenseValidUntil ? (
+                              <span className={new Date(u.licenseValidUntil) < new Date() ? 'text-red-500 font-bold' : 'text-green-600'}>
+                                {new Date(u.licenseValidUntil).toLocaleDateString()}
+                              </span>
+                            ) : 'N/A'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                              {orgTournaments.length} Events
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <TableRow className="bg-slate-50/50 border-b border-slate-100">
+                              <TableCell colSpan={5} className="p-0">
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: 'auto', opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="p-6 space-y-4">
+                                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                      <Trophy className="w-4 h-4 text-blue-600" />
+                                      Tournaments Organized by {u.email}
+                                    </h4>
+                                    {orgTournaments.length === 0 ? (
+                                      <p className="text-xs text-slate-400 italic py-4">No tournaments created yet.</p>
+                                    ) : (
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {orgTournaments.map(t => (
+                                          <Card key={t.id} className="bg-white border-slate-200 shadow-sm">
+                                            <CardHeader className="p-4">
+                                              <CardTitle className="text-sm">{t.name}</CardTitle>
+                                              <CardDescription className="text-[10px]">{t.venue}</CardDescription>
+                                            </CardHeader>
+                                            <CardContent className="p-4 pt-0 flex justify-between items-center">
+                                              <span className="text-[10px] text-slate-500">{t.date}</span>
+                                              <Badge variant="outline" className="text-[10px]">{t.numCourts} Courts</Badge>
+                                            </CardContent>
+                                          </Card>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </AnimatePresence>
+                      </React.Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </Card>
-
-            <Dialog open={!!selectedOrganizerTournaments} onOpenChange={() => setSelectedOrganizerTournaments(null)}>
-              <DialogContent className="max-w-3xl">
-                <DialogHeader>
-                  <DialogTitle>Tournaments by {selectedOrganizerTournaments?.email}</DialogTitle>
-                </DialogHeader>
-                <div className="mt-4 max-h-[60vh] overflow-y-auto">
-                  {selectedOrganizerTournaments?.tournaments.length === 0 ? (
-                    <div className="text-center py-12 text-slate-400">
-                      <Trophy className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                      <p>No tournaments created yet.</p>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Tournament</TableHead>
-                          <TableHead>Venue</TableHead>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Courts</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedOrganizerTournaments?.tournaments.map(t => (
-                          <TableRow key={t.id}>
-                            <TableCell className="font-bold">{t.name}</TableCell>
-                            <TableCell>{t.venue}</TableCell>
-                            <TableCell>{t.date}</TableCell>
-                            <TableCell>{t.numCourts}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
 
             <Dialog open={!!licenseToRevoke} onOpenChange={(open) => !open && setLicenseToRevoke(null)}>
               <DialogContent className="sm:max-w-[425px]">
