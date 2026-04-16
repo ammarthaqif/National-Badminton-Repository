@@ -36,8 +36,14 @@
         "umpireId": { "type": "string" },
         "umpireName": { "type": "string" },
         "isDoubles": { "type": "boolean" },
-        "server": { "type": "string", "description": "Current server (e.g., 'p1', 'p2')" },
-        "sets": { "type": "array", "description": "Scores for each set" }
+        "server": { "type": "string", "enum": ["p1", "p2"] },
+        "sets": { "type": "array" },
+        "currentSet": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" },
+        "stage": { "type": "string", "enum": ["group", "knockout"] },
+        "groupName": { "type": "string" },
+        "roundName": { "type": "string" },
+        "category": { "type": "string", "enum": ["singles", "doubles", "mixed"] }
       },
       "required": ["tournamentId", "status"]
     },
@@ -49,7 +55,15 @@
         "name": { "type": "string" },
         "tournamentId": { "type": "string" },
         "category": { "type": "string", "enum": ["singles", "doubles", "mixed"] },
-        "stats": { "type": "object" }
+        "stats": { 
+          "type": "object",
+          "properties": {
+            "matchesPlayed": { "type": "number" },
+            "wins": { "type": "number" },
+            "losses": { "type": "number" },
+            "totalPoints": { "type": "number" }
+          }
+        }
       },
       "required": ["name", "tournamentId", "category"]
     },
@@ -59,7 +73,9 @@
       "type": "object",
       "properties": {
         "name": { "type": "string" },
-        "tournamentId": { "type": "string" }
+        "tournamentId": { "type": "string" },
+        "isAvailable": { "type": "boolean" },
+        "preferredCourts": { "type": "array", "items": { "type": "number" } }
       },
       "required": ["name", "tournamentId"]
     },

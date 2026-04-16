@@ -464,10 +464,11 @@ export default function App() {
       setUser(u);
       if (u) {
         try {
-          const userSnap = await getDocs(query(collection(db, 'users'), where('uid', '==', u.uid), limit(1)));
+          // Use direct getDoc for better performance
+          const userDoc = await getDoc(doc(db, 'users', u.uid));
           
-          if (!userSnap.empty) {
-            let data = userSnap.docs[0].data() as AppUser;
+          if (userDoc.exists()) {
+            let data = userDoc.data() as AppUser;
             console.log("User data found:", data.role);
             
             // Auto-activate new license if current one is missing or expired
@@ -705,6 +706,48 @@ export default function App() {
       addNotification(`Login failed: ${error.message}`, "warning");
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const resetSystem = async () => {
+    if (!appUser || appUser.role !== 'superadmin') return;
+    
+    setLoading(true);
+    try {
+      addNotification("Starting system reset...", "warning");
+      
+      const collectionsToClear = ['tournaments', 'licenses', 'mail'];
+      for (const collName of collectionsToClear) {
+        const snap = await getDocs(collection(db, collName));
+        for (const docSnap of snap.docs) {
+          // If tournaments, also clear subcollections
+          if (collName === 'tournaments') {
+            const matches = await getDocs(collection(db, `tournaments/${docSnap.id}/matches`));
+            for (const m of matches.docs) await deleteDoc(doc(db, `tournaments/${docSnap.id}/matches/${m.id}`));
+            const umpires = await getDocs(collection(db, `tournaments/${docSnap.id}/umpires`));
+            for (const u of umpires.docs) await deleteDoc(doc(db, `tournaments/${docSnap.id}/umpires/${u.id}`));
+            const players = await getDocs(collection(db, `tournaments/${docSnap.id}/players`));
+            for (const p of players.docs) await deleteDoc(doc(db, `tournaments/${docSnap.id}/players/${p.id}`));
+          }
+          await deleteDoc(doc(db, collName, docSnap.id));
+        }
+      }
+      
+      // Clear users except self
+      const usersSnap = await getDocs(collection(db, 'users'));
+      for (const uDoc of usersSnap.docs) {
+        if (uDoc.id !== user?.uid) {
+          await deleteDoc(doc(db, 'users', uDoc.id));
+        }
+      }
+      
+      addNotification("System reset complete. Starting fresh.", "success");
+      window.location.reload();
+    } catch (error) {
+      console.error("Reset failed:", error);
+      addNotification("Reset failed. Check console.", "warning");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1086,7 +1129,29 @@ export default function App() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-screen font-mono text-slate-400">Loading SmashTrack...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center space-y-6"
+        >
+          <div className="bg-blue-600 p-4 rounded-2xl shadow-xl shadow-blue-200 animate-pulse">
+            <Trophy className="w-12 h-12 text-white" />
+          </div>
+          <div className="space-y-2 text-center">
+            <h2 className="text-xl font-bold text-slate-900">SmashTrack</h2>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
 
   const renderView = () => {
     if (view === 'landing') {
@@ -1094,7 +1159,7 @@ export default function App() {
     }
 
     if (view === 'superadmin') {
-      return <SuperadminDashboard />;
+      return <SuperadminDashboard onResetSystem={resetSystem} />;
     }
 
     if (view === 'login' && !user) {

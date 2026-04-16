@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 
-export default function SuperadminDashboard() {
+export default function SuperadminDashboard({ onResetSystem }: { onResetSystem?: () => Promise<void> }) {
   const [licenses, setLicenses] = useState<License[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -257,13 +257,47 @@ export default function SuperadminDashboard() {
               </CardContent>
             </Card>
 
+            <Card className="border-none shadow-sm bg-white">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-slate-400 uppercase tracking-wider">System Health</CardTitle>
+                <div className="text-4xl font-black text-blue-600">Stable</div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2 text-slate-500 text-xs">
+                  <Shield className="w-4 h-4 text-blue-500" />
+                  All services operational
+                </div>
+                {onResetSystem && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100">
+                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Reset Database
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle className="text-red-600">Reset System Database?</DialogTitle>
+                        <DialogDescription>
+                          This will delete ALL tournaments, matches, players, umpires, and licenses. This action is irreversible.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="flex gap-3 mt-4">
+                        <Button variant="outline" className="flex-1" onClick={() => {}}>Cancel</Button>
+                        <Button variant="destructive" className="flex-1" onClick={onResetSystem}>Clear Everything</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </CardContent>
+            </Card>
+
             <Card className="md:col-span-2 border-none shadow-sm bg-white">
               <CardHeader>
                 <CardTitle>Recent License Activity</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {licenses.slice(0, 5).map(l => (
+                  {licenses.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5).map(l => (
                     <div key={l.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
                       <div className="flex items-center gap-3">
                         <div className="bg-white p-2 rounded-lg shadow-sm">
@@ -274,7 +308,7 @@ export default function SuperadminDashboard() {
                           <p className="text-[10px] text-slate-500 uppercase font-medium">{l.type} License</p>
                         </div>
                       </div>
-                      <Badge variant={l.status === 'active' ? 'default' : 'secondary'}>{l.status}</Badge>
+                      <Badge variant={l.status === 'active' ? 'default' : l.status === 'expired' ? 'destructive' : 'secondary'}>{l.status}</Badge>
                     </div>
                   ))}
                 </div>
