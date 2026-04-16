@@ -873,11 +873,21 @@ export default function App() {
     await addDoc(collection(db, `tournaments/${tournamentId}/matches`), newMatch);
   };
 
-  const registerPlayer = async (tournamentId: string, name: string, category: 'singles' | 'doubles' | 'mixed' = 'singles') => {
+  const registerPlayer = async (
+    tournamentId: string, 
+    name: string, 
+    category: 'singles' | 'doubles' | 'mixed' = 'singles',
+    isTeam: boolean = false,
+    teamName: string = '',
+    members: string[] = []
+  ) => {
     const newPlayer: Omit<Player, 'id'> = {
-      name,
+      name: isTeam ? teamName : name,
       tournamentId,
       category,
+      isTeam,
+      teamName: isTeam ? teamName : undefined,
+      members: isTeam ? members : undefined,
       stats: { matchesPlayed: 0, wins: 0, losses: 0, totalPoints: 0 }
     };
     await addDoc(collection(db, `tournaments/${tournamentId}/players`), newPlayer);
@@ -1441,7 +1451,7 @@ function TournamentDashboard({
   onBack: () => void,
   onUmpireMatch: (id: string) => void,
   onCreateMatch: (tId: string, p1Id?: string, p2Id?: string, uId?: string, stage?: 'group' | 'knockout', groupName?: string, roundName?: string, category?: 'singles' | 'doubles' | 'mixed') => void,
-  onRegisterPlayer: (tId: string, name: string, category: 'singles' | 'doubles' | 'mixed') => void,
+  onRegisterPlayer: (tId: string, name: string, category: 'singles' | 'doubles' | 'mixed', isTeam?: boolean, teamName?: string, members?: string[]) => void,
   onImportPlayers: (tId: string, file: File) => void,
   onRegisterUmpire: (tId: string, name: string) => void,
   onToggleUmpireAvailability: (tId: string, uId: string, current: boolean) => void,
@@ -1459,6 +1469,7 @@ function TournamentDashboard({
   const [logoPreview, setLogoPreview] = useState<string | null>(tournament.logoUrl || null);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [showLeagueDialog, setShowLeagueDialog] = useState(false);
+  const [isTeamReg, setIsTeamReg] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const logoUploadRef = React.useRef<HTMLInputElement>(null);
 
@@ -2188,18 +2199,75 @@ function TournamentDashboard({
                     <form onSubmit={(e) => {
                       e.preventDefault();
                       const fd = new FormData(e.currentTarget);
-                      onRegisterPlayer(
-                        tournament.id!, 
-                        fd.get('name') as string, 
-                        fd.get('category') as any
-                      );
+                      const cat = fd.get('category') as any;
+                      const isTeam = fd.get('isTeam') === 'true';
+                      
+                      if (isTeam) {
+                        onRegisterPlayer(
+                          tournament.id!,
+                          '',
+                          cat,
+                          true,
+                          fd.get('teamName') as string,
+                          [fd.get('player1') as string, fd.get('player2') as string]
+                        );
+                      } else {
+                        onRegisterPlayer(
+                          tournament.id!, 
+                          fd.get('name') as string, 
+                          cat
+                        );
+                      }
                       e.currentTarget.reset();
+                      setIsTeamReg(false);
                     }} className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Player Name</label>
-                        <Input name="name" placeholder="Full Name" required />
+                      <div className="flex p-1 bg-slate-100 rounded-lg">
+                        <Button 
+                          type="button" 
+                          variant={!isTeamReg ? 'default' : 'ghost'} 
+                          size="sm" 
+                          className="flex-1 h-8 text-xs"
+                          onClick={() => setIsTeamReg(false)}
+                        >
+                          Individual
+                        </Button>
+                        <Button 
+                          type="button" 
+                          variant={isTeamReg ? 'default' : 'ghost'} 
+                          size="sm" 
+                          className="flex-1 h-8 text-xs"
+                          onClick={() => setIsTeamReg(true)}
+                        >
+                          Team (Doubles/Mixed)
+                        </Button>
+                        <input type="hidden" name="isTeam" value={isTeamReg.toString()} />
                       </div>
-                      <div className="space-y-2">
+
+                      {!isTeamReg ? (
+                        <div className="space-y-2 text-left">
+                          <label className="text-sm font-medium">Player Name</label>
+                          <Input name="name" placeholder="Full Name" required />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="space-y-2 text-left">
+                            <label className="text-sm font-medium">Team Name</label>
+                            <Input name="teamName" placeholder="e.g. Dynamic Duo" required />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2 text-left">
+                              <label className="text-sm font-medium">Player 1</label>
+                              <Input name="player1" placeholder="Name" required />
+                            </div>
+                            <div className="space-y-2 text-left">
+                              <label className="text-sm font-medium">Player 2</label>
+                              <Input name="player2" placeholder="Name" required />
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="space-y-2 text-left">
                         <label className="text-sm font-medium">Category</label>
                         <select name="category" className="w-full h-10 rounded-md border border-slate-200 px-3 text-sm" required>
                           <option value="singles">Singles</option>
@@ -2260,7 +2328,14 @@ function TournamentDashboard({
                             <TableRow key={p.id}>
                               <TableCell className="font-medium">
                                 <div className="flex items-center gap-2">
-                                  {p.name}
+                                  <div className="flex flex-col">
+                                    <span>{p.name}</span>
+                                    {p.isTeam && p.members && (
+                                      <span className="text-[10px] text-slate-400 font-normal">
+                                        Members: {p.members.join(', ')}
+                                      </span>
+                                    )}
+                                  </div>
                                   <Dialog>
                                     <DialogTrigger render={<Button variant="ghost" size="icon" className="h-6 w-6 p-0 text-slate-300 hover:text-blue-500" />}>
                                       <Edit2 className="w-3 h-3" />

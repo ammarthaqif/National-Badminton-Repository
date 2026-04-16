@@ -20,6 +20,7 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
   const [match, setMatch] = useState<Match | null>(null);
   const [undoStack, setUndoStack] = useState<Partial<Match>[]>([]);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
+  const [showSideSwitch, setShowSideSwitch] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, `tournaments/${tournamentId}/matches/${matchId}`), (snapshot) => {
@@ -80,6 +81,15 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
         setShowEndConfirm(true);
       }
       return;
+    }
+
+    // Check for 3rd set mid-point side switch logic
+    if (match.currentSet === 3 && (newScore1 === 11 || newScore2 === 11) && amount > 0) {
+      // Small check to ensure we only show the dialog once when the score hits 11
+      const isExactly11 = (newScore1 === 11 && match.score1 < 11) || (newScore2 === 11 && match.score2 < 11);
+      if (isExactly11) {
+        setShowSideSwitch(true);
+      }
     }
 
     await updateDoc(matchRef, {
@@ -185,6 +195,18 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
           )}
           onClick={() => updateScore(1, 1)}
         >
+          {/* Status Overlay */}
+          <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+            {match.score1 >= 20 && match.score2 >= 20 && match.score1 === match.score2 && (
+              <div className="bg-yellow-400 text-slate-900 px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase mb-4 shadow-xl z-20">Deuce</div>
+            )}
+            {match.score1 >= 20 && (match.score1 > match.score2) && (match.score1 - match.score2 === 1) && (
+              <div className="bg-red-500 text-white px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase mb-4 shadow-xl z-20 animate-pulse">
+                {match.currentSet === 3 || (match.currentSet === 2 && match.sets[0]?.s1 > match.sets[0]?.s2) ? 'Match Point' : 'Set Point'}
+              </div>
+            )}
+          </div>
+          
           {match.server === 'p1' && (
             <motion.div layoutId="server" className="absolute top-8 bg-yellow-400 text-slate-900 px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase shadow-lg">
               Serving
@@ -226,6 +248,18 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
           )}
           onClick={() => updateScore(2, 1)}
         >
+          {/* Status Overlay */}
+          <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+            {match.score1 >= 20 && match.score2 >= 20 && match.score1 === match.score2 && (
+              <div className="bg-yellow-400 text-slate-900 px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase mb-4 shadow-xl z-20">Deuce</div>
+            )}
+            {match.score2 >= 20 && (match.score2 > match.score1) && (match.score2 - match.score1 === 1) && (
+              <div className="bg-red-500 text-white px-4 py-1 rounded-full text-[10px] font-black tracking-widest uppercase mb-4 shadow-xl z-20 animate-pulse">
+                {match.currentSet === 3 || (match.currentSet === 2 && match.sets[0]?.s2 > match.sets[0]?.s1) ? 'Match Point' : 'Set Point'}
+              </div>
+            )}
+          </div>
+
           {match.server === 'p2' && (
             <motion.div layoutId="server" className="absolute top-8 bg-yellow-400 text-slate-900 px-3 py-1 rounded-full text-xs font-bold tracking-widest uppercase shadow-lg">
               Serving
@@ -341,6 +375,24 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
               Confirm & Exit
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Side Switch Dialog (Deciding Set) */}
+      <Dialog open={showSideSwitch} onOpenChange={setShowSideSwitch}>
+        <DialogContent className="bg-blue-900 border-white/20 text-white">
+          <DialogHeader className="items-center text-center">
+            <RotateCcw className="w-12 h-12 text-yellow-400 mb-2 animate-spin-slow" />
+            <DialogTitle className="text-2xl font-black uppercase italic tracking-tighter">
+              Switch Sides!
+            </DialogTitle>
+            <DialogDescription className="text-blue-100/80">
+              It's 11 points in the deciding set. Players must now switch sides of the court.
+            </DialogDescription>
+          </DialogHeader>
+          <Button onClick={() => setShowSideSwitch(false)} className="w-full bg-white text-blue-950 font-black hover:bg-blue-50 mt-4">
+            CONFIRMED
+          </Button>
         </DialogContent>
       </Dialog>
     </div>

@@ -18,6 +18,9 @@ export interface Player {
   name: string;
   tournamentId: string;
   category: 'singles' | 'doubles' | 'mixed';
+  isTeam?: boolean;
+  teamName?: string;
+  members?: string[];
   stats?: {
     matchesPlayed: number;
     wins: number;
