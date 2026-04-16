@@ -532,9 +532,10 @@ export default function App() {
               addNotification("Welcome, System Administrator.", "success");
             } else if (u.email) {
               // Check for license matching the email
+              const emailLower = u.email.toLowerCase();
               const licenseSnap = await getDocs(query(
                 collection(db, 'licenses'), 
-                where('organizerEmail', '==', u.email),
+                where('organizerEmail', '==', emailLower),
                 limit(1)
               ));
 
@@ -655,8 +656,9 @@ export default function App() {
 
   const handleLicenseLogin = async (email: string, pin: string) => {
     setLoginLoading(true);
+    const emailLower = email.toLowerCase();
     try {
-      console.log("Attempting license login for:", email);
+      console.log("Attempting license login for:", emailLower);
       // 1. Sign in anonymously to get a session
       const authResult = await signInAnonymously(auth);
       const u = authResult.user;
@@ -664,7 +666,7 @@ export default function App() {
       // 2. Query for the license
       const q = query(
         collection(db, 'licenses'), 
-        where('organizerEmail', '==', email),
+        where('organizerEmail', '==', emailLower),
         where('accessPin', '==', pin),
         limit(1)
       );

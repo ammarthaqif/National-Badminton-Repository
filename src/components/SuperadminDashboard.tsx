@@ -32,7 +32,7 @@ export default function SuperadminDashboard({ onResetSystem }: { onResetSystem?:
     });
 
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      setUsers(snapshot.docs.map(doc => ({ ...doc.data() } as AppUser)));
+      setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as AppUser)));
     });
 
     const unsubTournaments = onSnapshot(collection(db, 'tournaments'), (snapshot) => {
@@ -71,7 +71,7 @@ export default function SuperadminDashboard({ onResetSystem }: { onResetSystem?:
     e.preventDefault();
     console.log("SuperadminDashboard: Generating license...");
     const formData = new FormData(e.currentTarget);
-    const email = formData.get('email') as string;
+    const email = (formData.get('email') as string).toLowerCase();
     const type = formData.get('type') as License['type'];
     
     try {
@@ -269,10 +269,8 @@ export default function SuperadminDashboard({ onResetSystem }: { onResetSystem?:
                 </div>
                 {onResetSystem && (
                   <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100">
-                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Reset Database
-                      </Button>
+                    <DialogTrigger render={<Button variant="outline" size="sm" className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 border-red-100" />}>
+                      <Trash2 className="w-3.5 h-3.5 mr-2" /> Reset Database
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
