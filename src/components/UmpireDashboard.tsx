@@ -1,11 +1,20 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, onSnapshot, doc, updateDoc, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, where, addDoc } from 'firebase/firestore';
 import { Tournament, Match, Player, Umpire } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Input } from './ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from './ui/dialog';
 import { 
   Users, 
   Trophy, 
@@ -18,7 +27,9 @@ import {
   Activity,
   UserCheck,
   ChevronRight,
-  Info
+  Info,
+  Plus,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
@@ -36,6 +47,8 @@ export default function UmpireDashboard({ tournament, onExit }: UmpireDashboardP
   const [selectedUmpireId, setSelectedUmpireId] = useState<string | null>(localStorage.getItem(`umpireId_${tournament.id}`));
   const [scoringMatchId, setScoringMatchId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('match-queue');
+  const [isAddMatchOpen, setIsAddMatchOpen] = useState(false);
+  const [isAutoScheduling, setIsAutoScheduling] = useState(false);
 
   useEffect(() => {
     if (!tournament.id) return;
@@ -70,6 +83,111 @@ export default function UmpireDashboard({ tournament, onExit }: UmpireDashboardP
   };
 
   const currentUmpire = umpires.find(u => u.id === selectedUmpireId);
+
+  const addNewMatch = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const p1Id = formData.get('player1Id') as string;
+    const p2Id = formData.get('player2Id') as string;
+    const court = parseInt(formData.get('courtNumber') as string);
+    const category = formData.get('category') as Player['category'];
+    const stage = formData.get('stage') as Match['stage'];
+
+    const p1 = players.find(p => p.id === p1Id);
+    const p2 = players.find(p => p.id === p2Id);
+
+    if (!p1 || !p2) return;
+
+    try {
+      const matchData: Omit<Match, 'id'> = {
+        tournamentId: tournament.id!,
+        courtNumber: court,
+        player1: p1.name || p1.teamName || 'Unknown',
+        player2: p2.name || p2.teamName || 'Unknown',
+        player1Id: p1Id,
+        player2Id: p2Id,
+        score1: 0,
+        score2: 0,
+        status: 'scheduled',
+        isDoubles: p1.category !== 'singles',
+        server: 'p1',
+        sets: [],
+        currentSet: 1,
+        category: category,
+        stage: stage,
+        roundName: stage === 'group' ? 'Group Stage' : 'Knockout'
+      };
+
+      await addDoc(collection(db, `tournaments/${tournament.id}/matches`), matchData);
+      setIsAddMatchOpen(false);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `tournaments/${tournament.id}/matches`);
+    }
+  };
+
+  const autoSchedule = async () => {
+    setIsAutoScheduling(true);
+    try {
+      // 1. Find all players not in a pending/ongoing match
+      const busyPlayerIds = new Set<string>();
+      matches.filter(m => m.status !== 'completed').forEach(m => {
+        if (m.player1Id) busyPlayerIds.add(m.player1Id);
+        if (m.player2Id) busyPlayerIds.add(m.player2Id);
+      });
+
+      const freePlayers = players.filter(p => p.id && !busyPlayerIds.has(p.id));
+      
+      // 2. Pair them inside categories
+      const categories: Player['category'][] = ['singles', 'doubles', 'mixed'];
+      let scheduledCount = 0;
+
+      for (const cat of categories) {
+        const catPlayers = freePlayers.filter(p => p.category === cat);
+        for (let i = 0; i < catPlayers.length - 1; i += 2) {
+          const p1 = catPlayers[i];
+          const p2 = catPlayers[i+1];
+
+          // 3. Find first available court
+          const occupiedCourts = new Set(matches.filter(m => m.status !== 'completed').map(m => m.courtNumber));
+          let courtNum = 1;
+          while (occupiedCourts.has(courtNum) && courtNum <= tournament.numCourts) {
+            courtNum++;
+          }
+          
+          if (courtNum > tournament.numCourts) courtNum = 1; // Overflow to court 1 if all full
+
+          const matchData: Omit<Match, 'id'> = {
+            tournamentId: tournament.id!,
+            courtNumber: courtNum,
+            player1: p1.name || p1.teamName || 'Unknown',
+            player2: p2.name || p2.teamName || 'Unknown',
+            player1Id: p1.id,
+            player2Id: p2.id,
+            score1: 0,
+            score2: 0,
+            status: 'scheduled',
+            isDoubles: p1.category !== 'singles',
+            server: 'p1',
+            sets: [],
+            currentSet: 1,
+            category: cat,
+            stage: 'knockout',
+            roundName: 'Auto-Scheduled'
+          };
+
+          await addDoc(collection(db, `tournaments/${tournament.id}/matches`), matchData);
+          scheduledCount++;
+          occupiedCourts.add(courtNum);
+        }
+      }
+
+      console.log(`Auto-scheduled ${scheduledCount} matches.`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `tournaments/${tournament.id}/all_matches`);
+    } finally {
+      setIsAutoScheduling(false);
+    }
+  };
 
   if (scoringMatchId) {
     return (
@@ -212,14 +330,91 @@ export default function UmpireDashboard({ tournament, onExit }: UmpireDashboardP
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Ongoing Matches */}
               <div className="lg:col-span-2 space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
                     <Activity className="w-5 h-5 text-blue-600" />
                     Recommended Matches
                   </h2>
-                  <Badge variant="outline" className="text-blue-600 bg-blue-50 border-blue-100">
-                    {matches.filter(m => m.status !== 'completed').length} Pending
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="bg-blue-50 text-blue-600 border-blue-100 hover:bg-blue-100"
+                      onClick={autoSchedule}
+                      disabled={isAutoScheduling}
+                    >
+                      {isAutoScheduling ? (
+                        <div className="w-4 h-4 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mr-2" />
+                      ) : (
+                        <Sparkles className="w-4 h-4 mr-2" />
+                      )}
+                      Auto-Schedule
+                    </Button>
+
+                    <Dialog open={isAddMatchOpen} onOpenChange={setIsAddMatchOpen}>
+                      <DialogTrigger render={<Button size="sm" className="bg-slate-900 hover:bg-slate-800">
+                        <Plus className="w-4 h-4 mr-2" /> New Match
+                      </Button>} />
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Create New Match</DialogTitle>
+                          <DialogDescription>Manually pair players for a quick match</DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={addNewMatch} className="space-y-4 pt-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-xs font-black uppercase text-slate-400">Category</label>
+                              <select name="category" className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-white" required>
+                                <option value="singles">Singles</option>
+                                <option value="doubles">Doubles</option>
+                                <option value="mixed">Mixed</option>
+                              </select>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-black uppercase text-slate-400">Stage</label>
+                              <select name="stage" className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-white" required>
+                                <option value="group">Group Stage</option>
+                                <option value="knockout">Knockout Stage</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-xs font-black uppercase text-slate-400">Court</label>
+                            <Input name="courtNumber" type="number" min="1" max={tournament.numCourts} defaultValue="1" required className="h-10 rounded-xl" />
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <label className="text-xs font-black uppercase text-slate-400">Player 1 / Team 1</label>
+                              <select name="player1Id" className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-white" required>
+                                <option value="">Select Player...</option>
+                                {players.map(p => (
+                                  <option key={p.id} value={p.id}>{p.name || p.teamName} ({p.category})</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-black uppercase text-slate-400">Player 2 / Team 2</label>
+                              <select name="player2Id" className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-white" required>
+                                <option value="">Select Player...</option>
+                                {players.map(p => (
+                                  <option key={p.id} value={p.id}>{p.name || p.teamName} ({p.category})</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          <Button type="submit" className="w-full bg-blue-600 h-11 font-black shadow-lg shadow-blue-500/20">
+                            Create Match
+                          </Button>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
+
+                    <Badge variant="outline" className="text-blue-600 bg-blue-50 border-blue-100 h-9 px-3">
+                      {matches.filter(m => m.status !== 'completed').length} Pending
+                    </Badge>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -246,12 +441,22 @@ export default function UmpireDashboard({ tournament, onExit }: UmpireDashboardP
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <div className="flex-1">
-                              <p className="text-sm font-black text-slate-900 truncate">{match.player1}</p>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-black text-slate-900 truncate">{match.player1}</p>
+                                <Badge variant="outline" className="text-[8px] h-4 px-1 leading-none uppercase text-slate-400 border-slate-200 font-bold">
+                                  {match.category || 'Singles'}
+                                </Badge>
+                              </div>
                               {match.isDoubles && <p className="text-[10px] text-slate-400 italic">and partner</p>}
                             </div>
                             <div className="px-3 py-1 bg-white rounded-lg border border-slate-100 text-[10px] font-black group-hover:bg-blue-600 group-hover:text-white transition-colors">VS</div>
                             <div className="flex-1 text-right">
-                              <p className="text-sm font-black text-slate-900 truncate">{match.player2}</p>
+                              <div className="flex items-center justify-end gap-2">
+                                <Badge variant="outline" className="text-[8px] h-4 px-1 leading-none uppercase text-slate-400 border-slate-200 font-bold">
+                                  {match.category || 'Singles'}
+                                </Badge>
+                                <p className="text-sm font-black text-slate-900 truncate">{match.player2}</p>
+                              </div>
                               {match.isDoubles && <p className="text-[10px] text-slate-400 italic">and partner</p>}
                             </div>
                           </div>

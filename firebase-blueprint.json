@@ -49,12 +49,15 @@
     },
     "Player": {
       "title": "Player",
-      "description": "A registered player for a tournament.",
+      "description": "A registered player for a tournament, optionally linked to the national registry.",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
         "tournamentId": { "type": "string" },
         "category": { "type": "string", "enum": ["singles", "doubles", "mixed"] },
+        "nationalId": { "type": "string", "description": "Global SLN ID" },
+        "affiliation": { "type": "string", "description": "School/Club" },
+        "rank": { "type": "number" },
         "stats": { 
           "type": "object",
           "properties": {
@@ -69,13 +72,22 @@
     },
     "Umpire": {
       "title": "Umpire",
-      "description": "A registered umpire for a tournament.",
+      "description": "A registered umpire for a tournament with certification tracking.",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
         "tournamentId": { "type": "string" },
         "isAvailable": { "type": "boolean" },
-        "preferredCourts": { "type": "array", "items": { "type": "number" } }
+        "nationalId": { "type": "string" },
+        "certification": { "type": "string" },
+        "preferredCourts": { "type": "array", "items": { "type": "number" } },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "matchesOfficiated": { "type": "number" },
+            "hoursOnCourt": { "type": "number" }
+          }
+        }
       },
       "required": ["name", "tournamentId"]
     },
@@ -96,12 +108,17 @@
     },
     "AppUser": {
       "title": "AppUser",
-      "description": "A user of the application.",
+      "description": "A user of the application with career profile details.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["superadmin", "organizer", "user"] },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["superadmin", "organizer", "athlete", "umpire", "user"] },
+        "nationalId": { "type": "string" },
+        "affiliation": { "type": "string" },
+        "region": { "type": "string" },
+        "rankingPoints": { "type": "number" },
         "licenseId": { "type": "string" },
         "licenseValidUntil": { "type": "string", "format": "date-time" }
       },

@@ -1,5 +1,5 @@
 {
-  "name": "SmashTrack",
-  "description": "A professional live badminton scoring and tournament management platform with real-time umpire controls and audience views.",
+  "name": "ShuttleLink National",
+  "description": "The official national registry and unified database for badminton athletes and umpires. Integrated tournament management for professional and grassroots events.",
   "requestFramePermissions": ["camera"]
 }

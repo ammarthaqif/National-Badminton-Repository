@@ -21,6 +21,9 @@ export interface Player {
   category: 'singles' | 'doubles' | 'mixed';
   isTeam?: boolean;
   teamName?: string;
+  nationalId?: string; // SLN-XXXXX
+  affiliation?: string; // School/Club/Region
+  rank?: number;
   members?: string[];
   stats?: {
     matchesPlayed: number;
@@ -59,7 +62,13 @@ export interface Umpire {
   name: string;
   tournamentId: string;
   isAvailable: boolean;
+  nationalId?: string;
+  certification?: 'Grade 1' | 'Grade 2' | 'BWF Accredited' | 'Institutional';
   preferredCourts?: number[];
+  stats?: {
+    matchesOfficiated: number;
+    hoursOnCourt: number;
+  };
 }
 
 export interface License {
@@ -77,7 +86,12 @@ export interface License {
 export interface AppUser {
   uid: string;
   email: string;
-  role: 'superadmin' | 'organizer' | 'user';
+  role: 'superadmin' | 'organizer' | 'athlete' | 'umpire' | 'user';
+  name?: string;
+  nationalId?: string;
+  affiliation?: string;
+  region?: string;
+  rankingPoints?: number;
   licenseId?: string;
   licenseValidUntil?: string;
 }

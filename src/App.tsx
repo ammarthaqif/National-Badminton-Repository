@@ -9,7 +9,7 @@ import { Input } from './components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Badge } from './components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
-import { Trophy, Users, Layout, Play, CheckCircle, QrCode, LogIn, LogOut, Plus, Trash2, Smartphone, Monitor, Search, FileUp, Download, Settings, ChevronDown, ChevronUp, Key, Printer, FileSpreadsheet, Edit2, ListOrdered, ExternalLink, ShieldCheck, MapPin, Calendar, User as UserIcon, Shield, Smartphone as Phone, ImagePlus, X } from 'lucide-react';
+import { Trophy, Users, Layout, Play, CheckCircle, QrCode, LogIn, LogOut, Plus, Trash2, Smartphone, Monitor, Search, FileUp, Download, Settings, ChevronDown, ChevronUp, Key, Printer, FileSpreadsheet, Edit2, ListOrdered, ExternalLink, ShieldCheck, MapPin, Calendar, User as UserIcon, Shield, Smartphone as Phone, ImagePlus, X, Database } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './components/ui/dialog';
 import { QRCodeSVG } from 'qrcode.react';
@@ -249,90 +249,90 @@ const LoginView = ({
 const LandingView = ({ onStart }: { onStart: () => void }) => {
   console.log("LandingView rendered");
   return (
-    <div className="min-h-screen bg-white font-sans selection:bg-blue-100 selection:text-blue-600">
+    <div className="min-h-screen bg-stone font-sans selection:bg-gold/20 selection:text-navy">
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-200">
-              <Trophy className="w-6 h-6 text-white" />
+            <div className="bg-navy p-2 rounded-xl shadow-lg shadow-navy/20">
+              <Trophy className="w-6 h-6 text-gold" />
             </div>
-            <span className="text-2xl font-black tracking-tight text-slate-900">SmashTrack</span>
+            <span className="text-2xl font-black tracking-tight text-navy font-heading">ShuttleLink <span className="text-gold">National</span></span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <a href="#features" className="hover:text-blue-600 transition-colors">Features</a>
-            <a href="#pricing" className="hover:text-blue-600 transition-colors">Pricing</a>
-            <Button type="button" onClick={() => { console.log("Nav button clicked"); onStart(); }} className="bg-blue-600 hover:bg-blue-700 shadow-xl shadow-blue-100 px-8 rounded-full">
-              Launch Dashboard
+            <a href="#registry" className="hover:text-gold transition-colors">National Registry</a>
+            <a href="#features" className="hover:text-gold transition-colors">Federation Tools</a>
+            <Button type="button" onClick={() => { console.log("Nav button clicked"); onStart(); }} className="bg-navy hover:bg-slate-800 text-white font-bold shadow-xl shadow-navy/20 px-8 rounded-full border border-gold/30">
+              Portal Access
             </Button>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-40 pb-20 px-6">
-        <div className="max-w-7xl mx-auto text-center space-y-8">
+      <section className="pt-48 pb-24 px-6 relative overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[1000px] bg-gold/5 rounded-full blur-[120px] -z-10" />
+        <div className="max-w-7xl mx-auto text-center space-y-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 text-blue-600 text-sm font-bold border border-blue-100"
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-navy text-white text-xs font-black border border-gold/50 shadow-2xl"
           >
-            <Badge className="bg-blue-600">NEW</Badge>
-            <span>Real-time scoring for professional tournaments</span>
+            <Badge className="bg-gold text-navy font-black">OFFICIAL</Badge>
+            <span className="tracking-widest uppercase">The Unified National Badminton Standard</span>
           </motion.div>
           <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-6xl md:text-8xl font-black tracking-tight text-slate-900 leading-[1.1]"
+            className="text-7xl md:text-9xl font-black tracking-tighter text-navy leading-[0.9] font-heading"
           >
-            Elevate Your <br />
-            <span className="text-blue-600">Badminton Events</span>
+            One Nation. <br />
+            <span className="text-gold">One Registry.</span>
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="max-w-2xl mx-auto text-xl text-slate-500 leading-relaxed"
+            className="max-w-3xl mx-auto text-xl text-slate-600 leading-relaxed font-medium"
           >
-            The all-in-one platform for tournament organizers, umpires, and fans. 
-            Real-time updates, automated scheduling, and professional branding.
+            Empowering schools, universities, and professional clubs with a unified database of athletes, umpires, and tournament statistics. From grassroots to global elite.
           </motion.p>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4"
+            className="flex flex-col sm:flex-row items-center justify-center gap-5 pt-6"
           >
-            <Button type="button" onClick={() => { console.log("Hero button clicked"); onStart(); }} size="lg" className="h-16 px-10 text-lg font-bold bg-blue-600 hover:bg-blue-700 rounded-2xl shadow-2xl shadow-blue-200">
-              Access Dashboard
+            <Button type="button" onClick={() => { console.log("Hero button clicked"); onStart(); }} size="lg" className="h-16 px-12 text-lg font-black bg-navy text-white hover:bg-slate-800 rounded-2xl shadow-2xl shadow-navy/40 border-b-4 border-gold">
+              ENTER SYSTEM PORTAL
             </Button>
-            <Button type="button" variant="outline" size="lg" className="h-16 px-10 text-lg font-bold border-slate-200 rounded-2xl">
-              Watch Demo
+            <Button type="button" variant="outline" size="lg" className="h-16 px-12 text-lg font-bold border-slate-200 text-navy bg-white hover:bg-stone rounded-2xl">
+              Search Registry
             </Button>
           </motion.div>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="py-24 bg-slate-50">
+      <section id="features" className="py-32 bg-white">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16 space-y-4">
-            <h2 className="text-4xl font-black text-slate-900">Professional Features</h2>
-            <p className="text-slate-500 max-w-xl mx-auto">Everything you need to run a world-class tournament from your pocket.</p>
+          <div className="text-center mb-24 space-y-4">
+            <h2 className="text-5xl font-black text-navy font-heading">Federation-Grade Infrastructure</h2>
+            <p className="text-slate-500 max-w-2xl mx-auto text-lg font-medium">Built to handle the complexities of national sports governance while remaining accessible for local schools.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
             {[
-              { icon: <Smartphone className="w-8 h-8" />, title: "Umpire Dashboard", desc: "Intuitive scoring interface with undo, server tracking, and set management." },
-              { icon: <Monitor className="w-8 h-8" />, title: "Live Audience View", desc: "Real-time scoreboards for fans with smooth animations and match status." },
-              { icon: <Layout className="w-8 h-8" />, title: "Auto-Scheduling", desc: "Intelligent court assignment based on umpire availability and match priority." }
+              { icon: <Database className="w-8 h-8" />, title: "Unified National Registry", desc: "Permanent career profiles for athletes and umpires with verified certifications and achievements." },
+              { icon: <Trophy className="w-8 h-8" />, title: "Live National Ranking", desc: "Dynamic ELO-based points system that updates across the entire country after every sanctioned match." },
+              { icon: <ShieldCheck className="w-8 h-8" />, title: "Official Certification", desc: "Credential management for umpires including officiating hours, reviews, and progression tracking." }
             ].map((f, i) => (
-              <Card key={i} className="border-none shadow-sm hover:shadow-xl transition-all p-8 rounded-3xl bg-white">
-                <div className="bg-blue-50 text-blue-600 p-4 rounded-2xl w-fit mb-6">
+              <Card key={i} className="border-none shadow-[0_32px_64px_-16px_rgba(0,0,0,0.06)] hover:shadow-[0_48px_80px_-16px_rgba(0,0,0,0.1)] transition-all p-10 rounded-[2.5rem] bg-stone group">
+                <div className="bg-white text-navy p-5 rounded-2xl w-fit mb-8 shadow-sm group-hover:bg-gold group-hover:text-white transition-colors border border-slate-100">
                   {f.icon}
                 </div>
-                <h3 className="text-xl font-bold mb-3">{f.title}</h3>
-                <p className="text-slate-500 leading-relaxed">{f.desc}</p>
+                <h3 className="text-2xl font-bold mb-4 text-navy">{f.title}</h3>
+                <p className="text-slate-500 leading-relaxed font-medium">{f.desc}</p>
               </Card>
             ))}
           </div>
@@ -376,18 +376,32 @@ const LandingView = ({ onStart }: { onStart: () => void }) => {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-slate-100 text-center">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-blue-600" />
-            <span className="font-bold text-slate-900">SmashTrack</span>
+      <footer className="py-20 border-t border-slate-100 bg-navy text-white">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-10">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <Trophy className="w-8 h-8 text-gold" />
+              <span className="font-heading text-2xl font-black tracking-tighter">ShuttleLink <span className="text-gold">National</span></span>
+            </div>
+            <p className="text-slate-400 text-sm max-w-sm">The official unified database for national badminton excellence. From school level to professional federation standards.</p>
           </div>
-          <p className="text-slate-400 text-sm">© 2026 SmashTrack. All rights reserved.</p>
-          <div className="flex gap-6 text-sm font-medium text-slate-500">
-            <a href="#" className="hover:text-blue-600">Privacy</a>
-            <a href="#" className="hover:text-blue-600">Terms</a>
-            <a href="#" className="hover:text-blue-600">Contact</a>
+          <div className="grid grid-cols-3 gap-16 text-sm font-bold uppercase tracking-widest text-slate-300">
+            <div className="flex flex-col gap-4">
+              <span className="text-gold">Federation</span>
+              <a href="#" className="hover:text-white transition-colors">Registry</a>
+              <a href="#" className="hover:text-white transition-colors">Umpires</a>
+              <a href="#" className="hover:text-white transition-colors">Clubs</a>
+            </div>
+            <div className="flex flex-col gap-4">
+              <span className="text-gold">Support</span>
+              <a href="#" className="hover:text-white transition-colors">Institutional</a>
+              <a href="#" className="hover:text-white transition-colors">Schools</a>
+              <a href="#" className="hover:text-white transition-colors">Media</a>
+            </div>
           </div>
+        </div>
+        <div className="max-w-7xl mx-auto px-6 mt-20 pt-10 border-t border-white/10 text-center">
+           <p className="text-slate-500 text-xs">© 2026 ShuttleLink National Board. Global Athlete Registry ID: SL-7729-NBR. All rights reserved.</p>
         </div>
       </footer>
     </div>
@@ -941,13 +955,20 @@ export default function App() {
     if (!user) return;
     const form = e.currentTarget;
     const formData = new FormData(form);
+    const numCourts = Number(formData.get('courts'));
+    const courtNames: Record<number, string> = {};
+    for (let i = 1; i <= numCourts; i++) {
+      courtNames[i] = `Court ${i}`;
+    }
+
     const newTournament: Omit<Tournament, 'id'> = {
       name: formData.get('name') as string,
       organizerId: user.uid,
       licenseId: appUser?.licenseId || undefined,
       date: formData.get('date') as string,
       venue: formData.get('venue') as string,
-      numCourts: Number(formData.get('courts')),
+      numCourts: numCourts,
+      courtNames: courtNames,
       pin: Math.random().toString(36).substring(2, 8).toUpperCase(),
       umpirePin: Math.random().toString(36).substring(2, 8).toUpperCase(),
       audiencePin: Math.random().toString(36).substring(2, 8).toUpperCase(),
@@ -1313,22 +1334,23 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-navy">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center space-y-6"
+          className="flex flex-col items-center space-y-8"
         >
-          <div className="bg-blue-600 p-4 rounded-2xl shadow-xl shadow-blue-200 animate-pulse">
-            <Trophy className="w-12 h-12 text-white" />
+          <div className="bg-gold p-6 rounded-3xl shadow-2xl shadow-gold/20 animate-pulse">
+            <Trophy className="w-16 h-16 text-navy" />
           </div>
-          <div className="space-y-2 text-center">
-            <h2 className="text-xl font-bold text-slate-900">SmashTrack</h2>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
-              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]" />
-              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" />
+          <div className="space-y-3 text-center">
+            <h2 className="text-3xl font-heading font-black text-white tracking-widest uppercase">ShuttleLink <span className="text-gold">National</span></h2>
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-2 h-2 bg-gold rounded-full animate-bounce [animation-delay:-0.3s]" />
+              <div className="w-2 h-2 bg-gold rounded-full animate-bounce [animation-delay:-0.15s]" />
+              <div className="w-2 h-2 bg-gold rounded-full animate-bounce" />
             </div>
+            <p className="text-slate-400 text-[10px] font-black tracking-widest uppercase">Unified National Registry System</p>
           </div>
         </motion.div>
       </div>
@@ -1437,25 +1459,29 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
         {/* Header */}
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setSelectedTournamentId(null); setTempTournament(null); }}>
-              <div className="bg-blue-600 p-1.5 rounded-lg">
-                <Trophy className="w-5 h-5 text-white" />
+        <header className="bg-navy border-b border-gold/20 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+            <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setSelectedTournamentId(null); setTempTournament(null); }}>
+              <div className="bg-gold p-1.5 rounded-lg shadow-lg shadow-gold/20">
+                <Trophy className="w-5 h-5 text-navy" />
               </div>
-              <span className="font-bold text-xl tracking-tight">SmashTrack</span>
+              <span className="font-heading font-black text-2xl tracking-tighter text-white">ShuttleLink <span className="text-gold">National</span></span>
             </div>
             <div className="flex items-center gap-4">
               {user ? (
                 <div className="flex items-center gap-3">
-                  <Button variant="ghost" size="sm" onClick={() => setView('landing')}>Home</Button>
-                  <img src={user.photoURL || ''} alt="" className="w-8 h-8 rounded-full border border-slate-200" />
-                  <Button variant="ghost" size="sm" onClick={() => auth.signOut()}>
-                    <LogOut className="w-4 h-4 mr-2" /> Sign Out
+                  <div className="hidden md:flex flex-col items-end mr-2">
+                    <span className="text-xs font-black text-gold uppercase tracking-widest">{appUser?.role} Port</span>
+                    <span className="text-[10px] text-slate-400 font-bold">{user.email}</span>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setView('landing')} className="text-white hover:bg-white/10">Home</Button>
+                  <img src={user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`} alt="" className="w-10 h-10 rounded-xl border-2 border-gold/30 p-0.5 shadow-lg" />
+                  <Button variant="ghost" size="sm" onClick={() => auth.signOut()} className="text-white hover:bg-white/10">
+                    <LogOut className="w-4 h-4 mr-2" />
                   </Button>
                 </div>
               ) : (
-                <Button variant="outline" size="sm" onClick={() => setView('login')}>Login</Button>
+                <Button variant="outline" size="sm" onClick={() => setView('login')} className="border-gold/30 text-gold hover:bg-gold hover:text-navy font-bold">Registry Login</Button>
               )}
             </div>
           </div>
