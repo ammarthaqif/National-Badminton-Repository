@@ -112,7 +112,7 @@ const LoginView = ({
               <Trophy className="w-12 h-12 text-white" />
             </div>
             <div>
-              <CardTitle className="text-3xl font-bold tracking-tight text-slate-900">SmashTrack</CardTitle>
+              <CardTitle className="text-3xl font-bold tracking-tight text-slate-900 uppercase tracking-widest">National <span className="text-gold">Badminton</span> Registry</CardTitle>
               <CardDescription className="text-slate-500 mt-2">Professional Badminton Tournament Management</CardDescription>
             </div>
           </CardHeader>
@@ -257,13 +257,13 @@ const LandingView = ({ onStart }: { onStart: () => void }) => {
             <div className="bg-navy p-2 rounded-xl shadow-lg shadow-navy/20">
               <Trophy className="w-6 h-6 text-gold" />
             </div>
-            <span className="text-2xl font-black tracking-tight text-navy font-heading">ShuttleLink <span className="text-gold">National</span></span>
+            <span className="text-2xl font-black tracking-tight text-navy font-heading uppercase tracking-widest">National <span className="text-gold">Badminton</span> Registry</span>
           </div>
-          <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <a href="#registry" className="hover:text-gold transition-colors">National Registry</a>
-            <a href="#features" className="hover:text-gold transition-colors">Federation Tools</a>
+          <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600 uppercase tracking-wider">
+            <a href="#registry" className="hover:text-gold transition-colors">Athlete Directory</a>
+            <a href="#features" className="hover:text-gold transition-colors">Sanctioned Tools</a>
             <Button type="button" onClick={() => { console.log("Nav button clicked"); onStart(); }} className="bg-navy hover:bg-slate-800 text-white font-bold shadow-xl shadow-navy/20 px-8 rounded-full border border-gold/30">
-              Portal Access
+              Agency Login
             </Button>
           </div>
         </div>
@@ -285,10 +285,11 @@ const LandingView = ({ onStart }: { onStart: () => void }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-7xl md:text-9xl font-black tracking-tighter text-navy leading-[0.9] font-heading"
+            className="text-7xl md:text-9xl font-black tracking-tighter text-navy leading-[0.85] font-heading uppercase"
           >
-            One Nation. <br />
-            <span className="text-gold">One Registry.</span>
+            National <br />
+            <span className="text-gold">Badminton</span> <br />
+            <span className="text-navy">Registry</span>
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0, y: 20 }}
@@ -296,7 +297,7 @@ const LandingView = ({ onStart }: { onStart: () => void }) => {
             transition={{ delay: 0.2 }}
             className="max-w-3xl mx-auto text-xl text-slate-600 leading-relaxed font-medium"
           >
-            Empowering schools, universities, and professional clubs with a unified database of athletes, umpires, and tournament statistics. From grassroots to global elite.
+            The official centralized database for badminton athletes, officials, and institutions. Unified under the National Sports Authority standards for schools, universities, and professional federations.
           </motion.p>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -305,10 +306,10 @@ const LandingView = ({ onStart }: { onStart: () => void }) => {
             className="flex flex-col sm:flex-row items-center justify-center gap-5 pt-6"
           >
             <Button type="button" onClick={() => { console.log("Hero button clicked"); onStart(); }} size="lg" className="h-16 px-12 text-lg font-black bg-navy text-white hover:bg-slate-800 rounded-2xl shadow-2xl shadow-navy/40 border-b-4 border-gold">
-              ENTER SYSTEM PORTAL
+              ACCESS REGISTRY PORTAL
             </Button>
             <Button type="button" variant="outline" size="lg" className="h-16 px-12 text-lg font-bold border-slate-200 text-navy bg-white hover:bg-stone rounded-2xl">
-              Search Registry
+              Public Athlete Search
             </Button>
           </motion.div>
         </div>
@@ -381,27 +382,27 @@ const LandingView = ({ onStart }: { onStart: () => void }) => {
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
               <Trophy className="w-8 h-8 text-gold" />
-              <span className="font-heading text-2xl font-black tracking-tighter">ShuttleLink <span className="text-gold">National</span></span>
+              <span className="font-heading text-2xl font-black tracking-tighter uppercase">National <span className="text-gold">Badminton</span> Registry</span>
             </div>
-            <p className="text-slate-400 text-sm max-w-sm">The official unified database for national badminton excellence. From school level to professional federation standards.</p>
+            <p className="text-slate-400 text-sm max-w-sm">The legal authority for national badminton data, rankings, and certifications. Authorized for use by sanctioned institutions.</p>
           </div>
-          <div className="grid grid-cols-3 gap-16 text-sm font-bold uppercase tracking-widest text-slate-300">
+          <div className="grid grid-cols-3 gap-16 text-xs font-bold uppercase tracking-widest text-slate-300">
             <div className="flex flex-col gap-4">
-              <span className="text-gold">Federation</span>
-              <a href="#" className="hover:text-white transition-colors">Registry</a>
-              <a href="#" className="hover:text-white transition-colors">Umpires</a>
-              <a href="#" className="hover:text-white transition-colors">Clubs</a>
+              <span className="text-gold opacity-50">Administration</span>
+              <a href="#" className="hover:text-white transition-colors">Registry Access</a>
+              <a href="#" className="hover:text-white transition-colors">Umpires Board</a>
+              <a href="#" className="hover:text-white transition-colors">Club Sanctioning</a>
             </div>
             <div className="flex flex-col gap-4">
-              <span className="text-gold">Support</span>
-              <a href="#" className="hover:text-white transition-colors">Institutional</a>
-              <a href="#" className="hover:text-white transition-colors">Schools</a>
-              <a href="#" className="hover:text-white transition-colors">Media</a>
+              <span className="text-gold opacity-50">Sectors</span>
+              <a href="#" className="hover:text-white transition-colors">University League</a>
+              <a href="#" className="hover:text-white transition-colors">School Sports</a>
+              <a href="#" className="hover:text-white transition-colors">Pro Circuit</a>
             </div>
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-6 mt-20 pt-10 border-t border-white/10 text-center">
-           <p className="text-slate-500 text-xs">© 2026 ShuttleLink National Board. Global Athlete Registry ID: SL-7729-NBR. All rights reserved.</p>
+           <p className="text-slate-500 text-[10px] font-mono tracking-wider">NBR SYSTEM ID: REG-NBR-2026-NATIONAL. ALL DATA SUBJECT TO AUDIT.</p>
         </div>
       </footer>
     </div>
@@ -603,7 +604,7 @@ export default function App() {
                 
                 setAppUser(newUser);
                 setView('organizer');
-                addNotification("License activated! Welcome to SmashTrack.", "success");
+                addNotification("License activated! Welcome to the National Badminton Registry.", "success");
               } else {
                 console.log("No license found for email:", u.email);
                 addNotification("Access Denied: No registered license found for this email.", "warning");
@@ -1344,13 +1345,13 @@ export default function App() {
             <Trophy className="w-16 h-16 text-navy" />
           </div>
           <div className="space-y-3 text-center">
-            <h2 className="text-3xl font-heading font-black text-white tracking-widest uppercase">ShuttleLink <span className="text-gold">National</span></h2>
+            <h2 className="text-3xl font-heading font-black text-white tracking-widest uppercase">National <span className="text-gold">Badminton</span> Registry</h2>
             <div className="flex items-center justify-center gap-3">
               <div className="w-2 h-2 bg-gold rounded-full animate-bounce [animation-delay:-0.3s]" />
               <div className="w-2 h-2 bg-gold rounded-full animate-bounce [animation-delay:-0.15s]" />
               <div className="w-2 h-2 bg-gold rounded-full animate-bounce" />
             </div>
-            <p className="text-slate-400 text-[10px] font-black tracking-widest uppercase">Unified National Registry System</p>
+            <p className="text-slate-400 text-[10px] font-black tracking-widest uppercase italic">Secure National Database Uplink...</p>
           </div>
         </motion.div>
       </div>
@@ -1465,7 +1466,7 @@ export default function App() {
               <div className="bg-gold p-1.5 rounded-lg shadow-lg shadow-gold/20">
                 <Trophy className="w-5 h-5 text-navy" />
               </div>
-              <span className="font-heading font-black text-2xl tracking-tighter text-white">ShuttleLink <span className="text-gold">National</span></span>
+              <span className="font-heading font-black text-2xl tracking-tighter text-white uppercase tracking-widest">NBR <span className="text-gold">Admin</span> Port</span>
             </div>
             <div className="flex items-center gap-4">
               {user ? (
@@ -2797,7 +2798,7 @@ function PublicRegistrationView({
              <div className="bg-blue-600 p-2 rounded-xl">
                <Trophy className="w-6 h-6 text-white" />
              </div>
-             <span className="font-black text-2xl tracking-tighter text-slate-900">SmashTrack</span>
+             <span className="font-black text-2xl tracking-tighter text-slate-900 uppercase tracking-widest">NBR <span className="text-gold">Admin</span> Port</span>
           </div>
           <h1 className="text-4xl font-black text-slate-900 tracking-tight">{tournament.name}</h1>
           <p className="text-slate-500 font-medium">Official Player Registration</p>
@@ -2895,7 +2896,7 @@ function PublicRegistrationView({
         </Card>
 
         <p className="text-center text-xs text-slate-400 font-medium">
-          Protected by SmashTrack Security • Only for {tournament.name}
+          Protected by NBR Security Protocols • Only for {tournament.name}
         </p>
       </div>
     </div>

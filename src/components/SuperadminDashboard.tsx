@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType, auth } from '../firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, getDocs, where, setDoc, deleteDoc } from 'firebase/firestore';
-import { License, AppUser, Tournament, Match, Player, Umpire } from '../types';
+import { License, AppUser, Tournament, Match, Player, Umpire, SanctionedInstitution } from '../types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -27,8 +27,9 @@ export default function SuperadminDashboard({
   const [licenses, setLicenses] = useState<License[]>([]);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [institutions, setInstitutions] = useState<SanctionedInstitution[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'licenses' | 'users' | 'overview' | 'tournaments' | 'system'>('overview');
+  const [activeTab, setActiveTab] = useState<'licenses' | 'users' | 'overview' | 'tournaments' | 'institutions' | 'system'>('overview');
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
@@ -41,6 +42,7 @@ export default function SuperadminDashboard({
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [lastGeneratedLicense, setLastGeneratedLicense] = useState<{email: string, pin: string} | null>(null);
+  const [institutionToDelete, setInstitutionToDelete] = useState<SanctionedInstitution | null>(null);
 
   useEffect(() => {
     console.log("SuperadminDashboard: Setting up listeners...");
@@ -56,11 +58,16 @@ export default function SuperadminDashboard({
       setTournaments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tournament)));
     });
 
+    const unsubInstitutions = onSnapshot(collection(db, 'institutions'), (snapshot) => {
+      setInstitutions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SanctionedInstitution)));
+    });
+
     setLoading(false);
     return () => {
       unsubLicenses();
       unsubUsers();
       unsubTournaments();
+      unsubInstitutions();
     };
   }, []);
 
@@ -268,24 +275,24 @@ export default function SuperadminDashboard({
       await addDoc(collection(db, 'mail'), {
         to: email,
         message: {
-          subject: 'Welcome to SmashTrack - Your Organizer Activation PIN',
+          subject: 'Welcome to National Badminton Registry - Your Official Access PIN',
           html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
-              <h1 style="color: #2563eb; font-size: 24px; font-weight: 800; margin-bottom: 16px;">Welcome to SmashTrack!</h1>
-              <p style="color: #475569; font-size: 16px; line-height: 1.5;">You have been invited to organize tournaments on SmashTrack. To get started, please use the activation PIN below.</p>
+            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e8e5d5; border-radius: 12px; background-color: #fdfcf6;">
+              <h1 style="color: #0c1222; font-size: 24px; font-weight: 800; margin-bottom: 16px;">National Badminton Registry</h1>
+              <p style="color: #475569; font-size: 16px; line-height: 1.5;">You have been authorized as a Sanctioned Organizer for the National Badminton Registry. To activate your NBR Agency Status, please use the secure PIN below.</p>
               
-              <div style="background-color: #f8fafc; padding: 24px; border-radius: 8px; text-align: center; margin: 24px 0;">
-                <p style="text-transform: uppercase; font-size: 12px; font-weight: 700; color: #94a3b8; letter-spacing: 0.1em; margin-bottom: 8px;">Your Activation PIN</p>
-                <p style="font-family: monospace; font-size: 32px; font-weight: 900; color: #2563eb; letter-spacing: 0.2em; margin: 0;">${newLicense.accessPin}</p>
+              <div style="background-color: #ffffff; padding: 24px; border-radius: 8px; text-align: center; margin: 24px 0; border: 1px solid #c5a037;">
+                <p style="text-transform: uppercase; font-size: 12px; font-weight: 700; color: #6b7280; letter-spacing: 0.1em; margin-bottom: 8px;">Your Security Activation PIN</p>
+                <p style="font-family: monospace; font-size: 32px; font-weight: 900; color: #0c1222; letter-spacing: 0.2em; margin: 0;">${newLicense.accessPin}</p>
               </div>
 
-              <p style="color: #475569; font-size: 16px; line-height: 1.5;">Click the link below to log in and enter your PIN:</p>
+              <p style="color: #475569; font-size: 16px; line-height: 1.5;">Access the registry portal and enter your PIN to begin:</p>
               
-              <a href="${window.location.origin}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; margin-top: 16px;">Go to SmashTrack Dashboard</a>
+              <a href="${window.location.origin}" style="display: inline-block; background-color: #0c1222; color: #fdfcf6; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; margin-top: 16px; border: 1px solid #c5a037;">NBR Access Portal</a>
               
-              <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0;" />
+              <hr style="border: 0; border-top: 1px solid #e8e5d5; margin: 32px 0;" />
               
-              <p style="color: #94a3b8; font-size: 12px;">This license is a <strong>${type}</strong> subscription and is valid until ${validUntil.toLocaleDateString()}.</p>
+              <p style="color: #94a3b8; font-size: 12px;">This NBR authorization is a <strong>${type}</strong> classification and is valid until ${validUntil.toLocaleDateString()}.</p>
             </div>
           `
         }
@@ -371,6 +378,11 @@ export default function SuperadminDashboard({
             onClick={() => setActiveTab('tournaments')}
             className="rounded-lg"
           >Tournaments</Button>
+          <Button 
+            variant={activeTab === 'institutions' ? 'default' : 'ghost'} 
+            onClick={() => setActiveTab('institutions')}
+            className="rounded-lg"
+          >Institutions</Button>
           <Button 
             variant={activeTab === 'users' ? 'default' : 'ghost'} 
             onClick={() => setActiveTab('users')}
@@ -1188,6 +1200,175 @@ export default function SuperadminDashboard({
                 </form>
               </DialogContent>
             </Dialog>
+          </motion.div>
+        )}
+
+        {activeTab === 'institutions' && (
+          <motion.div 
+            key="institutions"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="flex items-center gap-4 bg-white p-2 px-4 rounded-2xl border border-slate-200 shadow-sm w-full md:max-w-md">
+                <Search className="w-5 h-5 text-slate-400" />
+                <Input 
+                  placeholder="Filter institutions..." 
+                  className="border-none shadow-none focus-visible:ring-0"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="bg-[#0C1222] text-white rounded-xl h-12 px-6 shadow-lg shadow-slate-200">
+                    <Plus className="w-4 h-4 mr-2" /> Sanction Institution
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                       <Shield className="w-6 h-6 text-[#C5A037]" />
+                       Sanction New Institution
+                    </DialogTitle>
+                    <DialogDescription>Add a school, university or club to the NBR official registry.</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const newInst = {
+                      name: formData.get('name') as string,
+                      type: formData.get('type') as any,
+                      region: formData.get('region') as string,
+                      contactEmail: formData.get('email') as string,
+                      registryId: `NBR-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+                      status: 'active'
+                    };
+                    try {
+                      await addDoc(collection(db, 'institutions'), newInst);
+                      addNotification?.('Institution sanctioned successfully.', 'success');
+                      (e.target as HTMLFormElement).reset();
+                    } catch (err) {
+                      handleFirestoreError(err, OperationType.WRITE, 'institutions');
+                    }
+                  }} className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                       <label className="text-xs font-bold uppercase text-slate-400">Institution Name</label>
+                       <Input name="name" placeholder="e.g. National University of Badminton" required />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-slate-400">Type</label>
+                        <select name="type" className="w-full h-10 px-3 rounded-md border text-sm" required>
+                          <option value="School">School</option>
+                          <option value="College">College</option>
+                          <option value="University">University</option>
+                          <option value="Professional Club">Professional Club</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-slate-400">Region</label>
+                        <Input name="region" placeholder="e.g. Selangor" required />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-xs font-bold uppercase text-slate-400">Contact Email</label>
+                       <Input name="email" type="email" placeholder="admin@univ.edu" required />
+                    </div>
+                    <Button type="submit" className="w-full bg-[#0C1222] text-white">Issue NBR Registry ID</Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+             </div>
+
+             <Card className="border-none shadow-sm overflow-hidden bg-white">
+               <Table>
+                 <TableHeader>
+                   <TableRow className="bg-slate-50/50">
+                     <TableHead>Institution Name</TableHead>
+                     <TableHead>Registry ID</TableHead>
+                     <TableHead>Type</TableHead>
+                     <TableHead>Region</TableHead>
+                     <TableHead>Status</TableHead>
+                     <TableHead className="text-right">Actions</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {institutions
+                     .filter(inst => inst.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                     .map((inst) => (
+                     <TableRow key={inst.id}>
+                       <TableCell className="font-bold text-slate-900">{inst.name}</TableCell>
+                       <TableCell>
+                         <code className="text-xs bg-slate-100 px-2 py-1 rounded font-mono text-blue-600">
+                           {inst.registryId}
+                         </code>
+                       </TableCell>
+                       <TableCell>
+                         <Badge variant="secondary">{inst.type}</Badge>
+                       </TableCell>
+                       <TableCell className="text-slate-600">{inst.region}</TableCell>
+                       <TableCell>
+                         <div className="flex items-center gap-2">
+                           <div className="w-2 h-2 rounded-full bg-green-500" />
+                           <span className="text-xs font-bold text-green-700 uppercase">{inst.status}</span>
+                         </div>
+                       </TableCell>
+                       <TableCell className="text-right">
+                         <div className="flex justify-end gap-2">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-slate-400 hover:text-red-500 transition-colors" 
+                              onClick={() => setInstitutionToDelete(inst)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                         </div>
+                       </TableCell>
+                     </TableRow>
+                   ))}
+                   {institutions.length === 0 && (
+                     <TableRow>
+                       <TableCell colSpan={6} className="text-center py-20 text-slate-400">
+                         <div className="flex flex-col items-center gap-3">
+                           <Shield className="w-12 h-12 text-slate-200" />
+                           <p className="italic">No sanctioned institutions registered in system.</p>
+                         </div>
+                       </TableCell>
+                     </TableRow>
+                   )}
+                 </TableBody>
+               </Table>
+             </Card>
+
+             <Dialog open={!!institutionToDelete} onOpenChange={(open) => !open && setInstitutionToDelete(null)}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="text-red-600">Revoke Sanction</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to revoke the NBR sanction for <strong>{institutionToDelete?.name}</strong>? 
+                      This will invalidate their registry status across all documents.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="flex gap-4 pt-4">
+                    <Button variant="outline" className="flex-1" onClick={() => setInstitutionToDelete(null)}>Cancel</Button>
+                    <Button variant="destructive" className="flex-1" onClick={async () => {
+                      if(institutionToDelete?.id) {
+                        try {
+                          await deleteDoc(doc(db, 'institutions', institutionToDelete.id));
+                          addNotification?.('Sanction revoked.', 'success');
+                          setInstitutionToDelete(null);
+                        } catch (err) {
+                           handleFirestoreError(err, OperationType.WRITE, 'institutions');
+                        }
+                      }
+                    }}>Revoke Status</Button>
+                  </div>
+                </DialogContent>
+             </Dialog>
           </motion.div>
         )}
       </AnimatePresence>

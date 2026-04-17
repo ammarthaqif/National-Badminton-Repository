@@ -86,7 +86,7 @@ export default function AudienceView({ tournamentId, onSelectMatch, onExit, onBa
               <div className="bg-blue-600 p-2.5 rounded-2xl rotate-3 shadow-xl shadow-blue-500/20">
                 <Trophy className="w-8 h-8 text-white" />
               </div>
-              <span className="font-black text-3xl tracking-tighter uppercase italic">SmashTrack</span>
+              <span className="font-black text-3xl tracking-tighter uppercase italic text-gold">National Badminton Registry</span>
             </div>
             <div className="space-y-2">
               {(onBack || onExit) && (

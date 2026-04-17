@@ -669,7 +669,7 @@ export default function UmpireDashboard({ tournament, onExit }: UmpireDashboardP
       <footer className="max-w-7xl mx-auto px-4 py-12 text-center">
         <div className="flex items-center justify-center gap-2 opacity-30 grayscale hover:grayscale-0 transition-all cursor-default scale-90">
           <Trophy className="w-5 h-5 text-slate-900" />
-          <span className="font-black text-xl tracking-tighter text-slate-900">SmashTrack</span>
+          <span className="font-black text-xl tracking-tighter text-slate-900 uppercase tracking-widest">National <span className="text-gold">Badminton</span> Registry</span>
         </div>
       </footer >
     </div>

@@ -1,5 +1,5 @@
 {
-  "name": "ShuttleLink National",
-  "description": "The official national registry and unified database for badminton athletes and umpires. Integrated tournament management for professional and grassroots events.",
+  "name": "National Badminton Registry",
+  "description": "The official centralized database for badminton athletes, officials, and sanctioned institutions. Managed under the national sports authority standards.",
   "requestFramePermissions": ["camera"]
 }

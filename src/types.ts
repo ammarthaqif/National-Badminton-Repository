@@ -96,6 +96,16 @@ export interface AppUser {
   licenseValidUntil?: string;
 }
 
+export interface SanctionedInstitution {
+  id?: string;
+  name: string;
+  type: 'School' | 'College' | 'University' | 'Professional Club' | 'Casual Hub';
+  region: string;
+  contactEmail?: string;
+  registryId: string;
+  status: 'Active' | 'Pending' | 'Suspended';
+}
+
 export interface Notification {
   id: string;
   message: string;

@@ -106,6 +106,20 @@
       },
       "required": ["organizerEmail", "accessPin", "type", "validUntil", "status"]
     },
+    "SanctionedInstitution": {
+      "title": "Sanctioned Institution",
+      "description": "A school, university, or club authorized to host matches and manage registries.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["School", "College", "University", "Professional Club", "Casual Hub"] },
+        "region": { "type": "string" },
+        "contactEmail": { "type": "string" },
+        "registryId": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Pending", "Suspended"] }
+      },
+      "required": ["name", "type", "registryId"]
+    },
     "AppUser": {
       "title": "AppUser",
       "description": "A user of the application with career profile details.",
@@ -149,6 +163,10 @@
     "/users/{userId}": {
       "schema": "AppUser",
       "description": "Application users"
+    },
+    "/institutions/{institutionId}": {
+      "schema": "SanctionedInstitution",
+      "description": "Authorized schools, universities, and professional clubs"
     },
     "/mail/{mailId}": {
       "schema": "object",

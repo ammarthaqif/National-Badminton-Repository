@@ -17,22 +17,22 @@
 }
 
 :root {
-    --background: #F8FAFC;
-    --foreground: #0F172A;
+    --background: #FDFCF6; /* Institutional Cream */
+    --foreground: #0C1222; /* Deep Slate Navy */
     --card: #FFFFFF;
-    --card-foreground: #0F172A;
-    --primary: #0F172A;
-    --primary-foreground: #FFFFFF;
-    --secondary: #E2E8F0;
-    --secondary-foreground: #0F172A;
-    --accent: #D4AF37;
+    --card-foreground: #0C1222;
+    --primary: #0C1222;
+    --primary-foreground: #FDFCF6;
+    --secondary: #F1F1F1;
+    --secondary-foreground: #0C1222;
+    --accent: #C5A037; /* Muted Gold */
     --accent-foreground: #FFFFFF;
-    --muted: #F1F5F9;
-    --muted-foreground: #64748B;
-    --border: #E2E8F0;
-    --input: #E2E8F0;
-    --ring: #0F172A;
-    --radius: 0.75rem;
+    --muted: #F8F7F2;
+    --muted-foreground: #6B7280;
+    --border: #E8E5D5;
+    --input: #E8E5D5;
+    --ring: #0C1222;
+    --radius: 0.5rem; /* Sharper corners for a more formal look */
 }
 
 .dark {
