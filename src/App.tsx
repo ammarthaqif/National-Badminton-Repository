@@ -1,7 +1,7 @@
 import React, { useState, useEffect, Component } from 'react';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, User, signInAnonymously } from 'firebase/auth';
-import { collection, query, where, onSnapshot, doc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, limit, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp, limit, getDoc, or } from 'firebase/firestore';
 import { Tournament, Match, Umpire, Player, AppUser, License, Notification } from './types';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
@@ -9,7 +9,7 @@ import { Input } from './components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Badge } from './components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
-import { Trophy, Users, Layout, Play, CheckCircle, QrCode, LogIn, LogOut, Plus, Trash2, Smartphone, Monitor, Search, FileUp, Download, Settings, ChevronDown, ChevronUp, Key, Printer, FileSpreadsheet, Edit2, ListOrdered } from 'lucide-react';
+import { Trophy, Users, Layout, Play, CheckCircle, QrCode, LogIn, LogOut, Plus, Trash2, Smartphone, Monitor, Search, FileUp, Download, Settings, ChevronDown, ChevronUp, Key, Printer, FileSpreadsheet, Edit2, ListOrdered, ExternalLink, ShieldCheck, MapPin, Calendar, User as UserIcon, Shield, Smartphone as Phone } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './components/ui/dialog';
 import { QRCodeSVG } from 'qrcode.react';
@@ -18,6 +18,7 @@ import { cn } from './lib/utils';
 import UmpireScoring from './components/UmpireScoring';
 import AudienceView from './components/AudienceView';
 import SuperadminDashboard from './components/SuperadminDashboard';
+import UmpireDashboard from './components/UmpireDashboard';
 
 // --- Error Boundary ---
 
@@ -434,7 +435,7 @@ const LicenseActivationView = ({ onActivate }: { onActivate: (pin: string) => vo
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
-  const [view, setView] = useState<'organizer' | 'umpire' | 'audience' | 'login' | 'superadmin' | 'landing'>('landing');
+  const [view, setView] = useState<'organizer' | 'umpire' | 'audience' | 'login' | 'superadmin' | 'landing' | 'public-registration'>('landing');
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
   const [tempTournament, setTempTournament] = useState<Tournament | null>(null);
@@ -456,6 +457,26 @@ export default function App() {
       setNotifications(prev => prev.filter(n => n.id !== id));
     }, 10000);
   };
+
+  useEffect(() => {
+    // Handle URL parameters for public views (Register, Umpire, Audience)
+    const params = new URLSearchParams(window.location.search);
+    const tId = params.get('tournamentId');
+    const v = params.get('view');
+    
+    if (tId && (v === 'register' || v === 'umpire' || v === 'audience')) {
+      setSelectedTournamentId(tId);
+      if (v === 'register') setView('public-registration');
+      else setView(v as any);
+      
+      // Fetch data for the shared tournament
+      getDoc(doc(db, 'tournaments', tId)).then(snap => {
+        if (snap.exists()) {
+          setTempTournament({ id: snap.id, ...snap.data() } as Tournament);
+        }
+      });
+    }
+  }, []);
 
   useEffect(() => {
     console.log("Setting up auth listener...");
@@ -504,16 +525,13 @@ export default function App() {
               }
             }
             setAppUser(data);
-            // Only auto-redirect if they are stuck on login or if they are superadmin
-            if (data.role === 'superadmin') setView('superadmin');
-            else {
-              setView(prev => {
-                if (prev === 'login') {
-                  console.log("Redirecting from login to organizer");
-                  return 'organizer';
-                }
-                return prev;
-              });
+            // Auto-redirect to dashboard if they are on the login screen
+            // EXCEPT for anonymous users who might be in the middle of a PIN verification
+            // (They will be manually redirected by handleLicenseLogin)
+            if (data.role === 'superadmin') {
+              setView('superadmin');
+            } else if (view === 'login' && !u.isAnonymous) {
+              setView('organizer');
             }
           } else {
             console.log("New user detected, verifying license for email:", u.email);
@@ -572,20 +590,21 @@ export default function App() {
               }
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching user data:", error);
-          handleFirestoreError(error, OperationType.GET, 'users');
+          if (error.code === 'permission-denied') {
+            console.warn("Permission denied for users doc - potentially an uninitialized account");
+            setAppUser(null);
+          } else {
+            handleFirestoreError(error, OperationType.GET, 'users');
+          }
         }
       } else {
         setAppUser(null);
-        // Only redirect to landing if they are in a view that REQUIRES auth
-        setView(prev => {
-          if (prev === 'organizer' || prev === 'superadmin') {
-            console.log("User logged out from restricted view, redirecting to login");
-            return 'login'; // Go to login so they can see any access denied messages
-          }
-          return prev;
-        });
+        // Reset state and views strictly on logout
+        if (view === 'organizer' || view === 'superadmin') {
+          setView('landing');
+        }
       }
       setLoading(false);
     });
@@ -593,15 +612,66 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Single session policy monitor
+    if (!user || !appUser || appUser.role !== 'organizer' || !appUser.licenseId) return;
+
+    console.log("Starting session monitor for license:", appUser.licenseId);
+    const licenseRef = doc(db, 'licenses', appUser.licenseId);
+    
+    const unsubscribe = onSnapshot(licenseRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        // If the license is now used by a different UID, sign this one out
+        if (data.usedByUid && data.usedByUid !== user.uid) {
+          console.warn("Session superseded by another login. Signing out...");
+          addNotification("Your session has ended because another login was detected with this license.", "warning");
+          setTimeout(() => {
+            auth.signOut();
+            setView('landing');
+          }, 2000);
+        }
+      }
+    }, (error) => {
+      console.error("Session monitor error:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, appUser?.licenseId, appUser?.role]);
+
+  useEffect(() => {
     if (!user || view !== 'organizer') return;
-    const q = query(collection(db, 'tournaments'), where('organizerId', '==', user.uid));
+    
+    // Query tournaments where the user is the organizer OR the tournament is linked to their current license
+    // This provides persistence even if the anonymous UID changes between sessions
+    const conditions = [where('organizerId', '==', user.uid)];
+    if (appUser?.licenseId) {
+      conditions.push(where('licenseId', '==', appUser.licenseId));
+    }
+    
+    const q = query(
+      collection(db, 'tournaments'), 
+      or(...conditions)
+    );
+    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTournaments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Tournament)));
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'tournaments');
     });
     return () => unsubscribe();
-  }, [user, view]);
+  }, [user, view, appUser?.licenseId]);
+
+  useEffect(() => {
+    // Safety check: ensure the license is marked as active in the database
+    // when the organizer is actually using the system dashboard
+    if (view === 'organizer' && appUser?.licenseId) {
+      updateDoc(doc(db, 'licenses', appUser.licenseId), {
+        status: 'active',
+        usedByUid: user?.uid,
+        lastLoginAt: new Date().toISOString()
+      }).catch(err => console.error("Auto-activation safety check failed:", err));
+    }
+  }, [view, appUser?.licenseId, user?.uid]);
 
   const selectedTournament = tournaments.find(t => t.id === selectedTournamentId) || tempTournament;
 
@@ -676,6 +746,20 @@ export default function App() {
         const licenseDoc = snap.docs[0];
         const licenseData = licenseDoc.data() as License;
         
+        // Single instance check: 
+        // If license is active and used by someone else within the last 5 minutes
+        if (licenseData.usedByUid && licenseData.usedByUid !== u.uid && licenseData.lastLoginAt) {
+          const lastActivity = new Date(licenseData.lastLoginAt).getTime();
+          const now = new Date().getTime();
+          const minutesSinceLastActivity = (now - lastActivity) / (1000 * 60);
+          
+          if (minutesSinceLastActivity < 10) { // 10 minute lockout for other sessions
+             await auth.signOut();
+             addNotification("This license is active in another session. Please wait 10 minutes or logout from the other device.", "warning");
+             return;
+          }
+        }
+
         // 3. Create/Update user profile
         const newUser: AppUser = {
           uid: u.uid,
@@ -687,13 +771,12 @@ export default function App() {
         
         await setDoc(doc(db, 'users', u.uid), newUser);
         
-        // 4. Update license status if it was pending or usedByUid was different
-        if (licenseData.status === 'pending' || licenseData.usedByUid !== u.uid) {
-          await updateDoc(doc(db, 'licenses', licenseDoc.id), {
-            status: 'active',
-            usedByUid: u.uid
-          });
-        }
+        // 4. Update license status and last login session
+        await updateDoc(doc(db, 'licenses', licenseDoc.id), {
+          status: 'active',
+          usedByUid: u.uid,
+          lastLoginAt: new Date().toISOString()
+        });
         
         setAppUser(newUser);
         setView('organizer');
@@ -819,6 +902,7 @@ export default function App() {
     const newTournament: Omit<Tournament, 'id'> = {
       name: formData.get('name') as string,
       organizerId: user.uid,
+      licenseId: appUser?.licenseId || undefined,
       date: formData.get('date') as string,
       venue: formData.get('venue') as string,
       numCourts: Number(formData.get('courts')),
@@ -896,20 +980,36 @@ export default function App() {
   const importPlayers = async (tournamentId: string, file: File) => {
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const data = new Uint8Array(e.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(worksheet) as any[];
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet) as any[];
 
-      for (const row of json) {
-        const name = row.Name || row.name || row.PLAYER || row.player;
-        const category = (row.Category || row.category || 'singles').toLowerCase();
-        const validCategory = ['singles', 'doubles', 'mixed'].includes(category) ? category : 'singles';
-        
-        if (name) {
-          await registerPlayer(tournamentId, name, validCategory as any);
+        let count = 0;
+        for (const row of json) {
+          const name = row.Name || row.name || row.PLAYER || row.player;
+          const category = (row.Category || row.category || 'singles').toLowerCase();
+          const validCategory = ['singles', 'doubles', 'mixed'].includes(category) ? category : 'singles';
+          const isTeam = String(row["Is Team (TRUE/FALSE)"]).toUpperCase() === "TRUE";
+          
+          if (name || row["Team Name"]) {
+            await registerPlayer(
+              tournamentId, 
+              name || "", 
+              validCategory as any, 
+              isTeam, 
+              row["Team Name"] || "", 
+              isTeam ? [row["Member 1"], row["Member 2"]].filter(Boolean) as string[] : undefined
+            );
+            count++;
+          }
         }
+        addNotification(`Successfully imported ${count} players`, "success");
+      } catch (err) {
+        console.error("Excel import error:", err);
+        addNotification("Failed to parse Excel file", "warning");
       }
     };
     reader.readAsArrayBuffer(file);
@@ -1170,30 +1270,92 @@ export default function App() {
       return <LandingView onStart={handleStart} />;
     }
 
-    if (view === 'superadmin') {
-      return <SuperadminDashboard onResetSystem={resetSystem} onHome={() => setView('landing')} />;
-    }
-
-    if (view === 'login' && !user) {
+    if (view === 'superadmin' && user) {
       return (
-        <LoginView 
-          onLogin={handleLogin} 
-          loginLoading={loginLoading}
-          onJoin={handleJoinByPin} 
-          tempTournament={tempTournament}
-          onSelectRole={(role) => {
-            setSelectedTournamentId(tempTournament?.id || null);
+        <SuperadminDashboard 
+          onResetSystem={resetSystem} 
+          onHome={() => setView('landing')} 
+          onViewAsRole={(tournament, role) => {
+            setSelectedTournamentId(tournament.id!);
             setView(role);
-            setTempTournament(null);
           }}
-          onCancelJoin={() => setTempTournament(null)}
-          onLicenseLogin={handleLicenseLogin}
         />
       );
     }
 
+    if (view === 'login' || !user) {
+      if (view !== 'landing' && view !== 'umpire' && view !== 'audience') {
+        return (
+          <LoginView 
+            onLogin={handleLogin} 
+            loginLoading={loginLoading}
+            onJoin={handleJoinByPin} 
+            tempTournament={tempTournament}
+            onSelectRole={(role) => {
+              setSelectedTournamentId(tempTournament?.id || null);
+              setView(role);
+              setTempTournament(null);
+            }}
+            onCancelJoin={() => setTempTournament(null)}
+            onLicenseLogin={handleLicenseLogin}
+          />
+        );
+      }
+    }
+
     if (view === 'audience' && selectedTournament) {
-      return <AudienceView tournamentId={selectedTournament.id!} onBack={() => { setView('login'); setSelectedTournamentId(null); }} />;
+      return (
+        <AudienceView 
+          tournamentId={selectedTournament.id!} 
+          onBack={() => { 
+            if (appUser?.role === 'superadmin') {
+              setView('superadmin');
+            } else {
+              setView('landing'); 
+              setSelectedTournamentId(null); 
+            }
+          }} 
+          onExit={() => {
+            if (appUser?.role === 'superadmin') {
+              setView('superadmin');
+            } else {
+              setView('landing'); 
+              setSelectedTournamentId(null); 
+            }
+          }}
+        />
+      );
+    }
+
+    if (view === 'public-registration' && selectedTournament) {
+      return (
+        <PublicRegistrationView 
+          tournament={selectedTournament} 
+          onRegister={(name, cat, isTeam, teamName, members) => {
+            registerPlayer(selectedTournament.id!, name, cat, isTeam, teamName, members);
+          }}
+          onBack={() => {
+            setView('landing');
+            setSelectedTournamentId(null);
+          }}
+        />
+      );
+    }
+
+    if (view === 'umpire' && selectedTournament) {
+      return (
+        <UmpireDashboard 
+          tournament={selectedTournament}
+          onExit={() => { 
+            if (appUser?.role === 'superadmin') {
+              setView('superadmin');
+            } else {
+              setView('login'); 
+              setSelectedTournamentId(null); 
+            }
+          }} 
+        />
+      );
     }
 
     if (activeMatchId && selectedTournament) {
@@ -1469,9 +1631,22 @@ function TournamentDashboard({
   const [logoPreview, setLogoPreview] = useState<string | null>(tournament.logoUrl || null);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
   const [showLeagueDialog, setShowLeagueDialog] = useState(false);
+  const [showFormDialog, setShowFormDialog] = useState(false);
   const [isTeamReg, setIsTeamReg] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const logoUploadRef = React.useRef<HTMLInputElement>(null);
+
+  const downloadTemplate = () => {
+    const templateData = [
+      { "Name": "John Doe", "Category": "singles", "Is Team (TRUE/FALSE)": "FALSE", "Team Name": "", "Member 1": "", "Member 2": "" },
+      { "Name": "", "Category": "doubles", "Is Team (TRUE/FALSE)": "TRUE", "Team Name": "Star Duo", "Member 1": "Alice", "Member 2": "Bob" },
+    ];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "Player_Registration_Template.xlsx");
+    addNotification("Template downloaded", "success");
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2128,6 +2303,48 @@ function TournamentDashboard({
                 <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                   <FileUp className="w-4 h-4 mr-2" /> Import Excel
                 </Button>
+                <Button variant="outline" size="sm" className="border-blue-200 text-blue-600 hover:bg-blue-50" onClick={downloadTemplate}>
+                  <Download className="w-4 h-4 mr-2" /> Template
+                </Button>
+                <Dialog open={showFormDialog} onOpenChange={setShowFormDialog}>
+                  <DialogTrigger render={<Button variant="outline" size="sm" className="border-purple-200 text-purple-600 hover:bg-purple-50" />}>
+                    <ExternalLink className="w-4 h-4 mr-2" /> Share Form
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Public Registration Form</DialogTitle>
+                      <DialogDescription>Share this link with players to allow them to register themselves</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4 text-center">
+                      <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-200 space-y-4">
+                        <div className="bg-white p-4 rounded-xl shadow-sm inline-block">
+                          <QRCodeSVG value={`${window.location.origin}?tournamentId=${tournament.id}&view=register`} size={180} />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Registration Link</p>
+                          <code className="text-xs bg-white px-3 py-2 rounded-lg border border-slate-200 block truncate">
+                            {window.location.origin}?tournamentId={tournament.id}&view=register
+                          </code>
+                        </div>
+                        <Button className="w-full" onClick={() => {
+                          const url = `${window.location.origin}?tournamentId=${tournament.id}&view=register`;
+                          navigator.clipboard.writeText(url);
+                          addNotification("Link copied to clipboard", "success");
+                        }}>
+                          Copy Registration Link
+                        </Button>
+                      </div>
+                      <div className="p-4 bg-purple-50 rounded-xl border border-purple-100 text-left">
+                        <h4 className="text-sm font-bold text-purple-900 mb-1 flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4" /> Pro Tip: Google Forms
+                        </h4>
+                        <p className="text-xs text-purple-700 leading-relaxed">
+                          To use Google Forms, export your Form responses to a <strong>Google Sheet</strong> and then "Download as CSV". You can then import that CSV using the "Import Excel" button here.
+                        </p>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
                 <Dialog open={showLeagueDialog} onOpenChange={setShowLeagueDialog}>
                   <DialogTrigger render={<Button variant="outline" size="sm" className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50" />}>
                     <ListOrdered className="w-4 h-4" /> Generate Matches
@@ -2305,8 +2522,8 @@ function TournamentDashboard({
                         <TableRow>
                           <TableHead>Player Name</TableHead>
                           <TableHead className="text-center">Played</TableHead>
-                          <TableHead className="text-center">Wins</TableHead>
-                          <TableHead className="text-center">Losses</TableHead>
+                          <TableHead>Wins</TableHead>
+                          <TableHead>Losses</TableHead>
                           <TableHead className="text-center">Win Rate</TableHead>
                           <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
@@ -2316,13 +2533,10 @@ function TournamentDashboard({
                           .filter(p => (p.category === cat || (!p.category && cat === 'singles')))
                           .filter(p => p.name.toLowerCase().includes(playerSearch.toLowerCase()))
                           .map(p => {
-                          const playerMatches = matches.filter(m => m.status === 'completed' && (m.player1Id === p.id || m.player2Id === p.id));
-                          const wins = playerMatches.filter(m => {
-                            if (m.player1Id === p.id) return m.score1 > m.score2;
-                            return m.score2 > m.score1;
-                          }).length;
-                          const losses = playerMatches.length - wins;
-                          const winRate = playerMatches.length > 0 ? Math.round((wins / playerMatches.length) * 100) : 0;
+                          const matchesPlayed = p.stats?.matchesPlayed || 0;
+                          const wins = p.stats?.wins || 0;
+                          const losses = p.stats?.losses || 0;
+                          const winRate = matchesPlayed > 0 ? Math.round((wins / matchesPlayed) * 100) : 0;
 
                           return (
                             <TableRow key={p.id}>
@@ -2372,7 +2586,7 @@ function TournamentDashboard({
                                   </Dialog>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-center">{playerMatches.length}</TableCell>
+                              <TableCell className="text-center">{matchesPlayed}</TableCell>
                               <TableCell className="text-center text-green-600 font-bold">{wins}</TableCell>
                               <TableCell className="text-center text-red-600 font-bold">{losses}</TableCell>
                               <TableCell className="text-center">
@@ -2434,4 +2648,140 @@ function TournamentDashboard({
     </div>
   );
 }
+
+function PublicRegistrationView({ 
+  tournament, 
+  onRegister, 
+  onBack 
+}: { 
+  tournament: Tournament, 
+  onRegister: (name: string, category: 'singles' | 'doubles' | 'mixed', isTeam: boolean, teamName?: string, members?: string[]) => void,
+  onBack: () => void 
+}) {
+  const [isTeam, setIsTeam] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center p-8 space-y-4">
+          <div className="bg-green-100 text-green-600 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+            <CheckCircle className="w-10 h-10" />
+          </div>
+          <h2 className="text-2xl font-bold">Registration Successful!</h2>
+          <p className="text-slate-500">Your details have been sent to the organizer. Good luck in the tournament!</p>
+          <Button onClick={onBack} className="w-full">Return Home</Button>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 py-12 px-4 font-sans">
+      <div className="max-w-xl mx-auto space-y-8">
+        <div className="text-center space-y-2">
+          <div className="flex items-center justify-center gap-3 mb-4">
+             <div className="bg-blue-600 p-2 rounded-xl">
+               <Trophy className="w-6 h-6 text-white" />
+             </div>
+             <span className="font-black text-2xl tracking-tighter text-slate-900">SmashTrack</span>
+          </div>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight">{tournament.name}</h1>
+          <p className="text-slate-500 font-medium">Official Player Registration</p>
+          <div className="flex items-center justify-center gap-4 text-xs font-bold text-slate-400 uppercase tracking-widest pt-2">
+            <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{tournament.venue}</span>
+            <span className="w-1 h-1 bg-slate-300 rounded-full" />
+            <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" />{tournament.date}</span>
+          </div>
+        </div>
+
+        <Card className="border-none shadow-2xl shadow-blue-900/10 overflow-hidden">
+          <div className="h-2 bg-gradient-to-r from-blue-600 to-indigo-600" />
+          <CardHeader className="pb-4">
+            <CardTitle className="text-2xl">Entry Details</CardTitle>
+            <CardDescription>Fill in your information to join the bracket</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              const name = fd.get('name') as string;
+              const cat = fd.get('category') as any;
+              
+              if (isTeam) {
+                onRegister('', cat, true, fd.get('teamName') as string, [fd.get('p1') as string, fd.get('p2') as string]);
+              } else {
+                onRegister(name, cat, false);
+              }
+              setSubmitted(true);
+            }} className="space-y-6">
+              <div className="flex p-1 bg-slate-100 rounded-2xl">
+                <Button 
+                  type="button" 
+                  variant={!isTeam ? 'default' : 'ghost'} 
+                  className="flex-1 h-11 rounded-xl font-bold"
+                  onClick={() => setIsTeam(false)}
+                >
+                  <UserIcon className="w-4 h-4 mr-2" /> Individual
+                </Button>
+                <Button 
+                  type="button" 
+                  variant={isTeam ? 'default' : 'ghost'} 
+                  className="flex-1 h-11 rounded-xl font-bold"
+                  onClick={() => setIsTeam(true)}
+                >
+                  <Users className="w-4 h-4 mr-2" /> Doubles
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-black text-slate-700 uppercase tracking-wider ml-1">Tournament Category</label>
+                <select name="category" className="w-full h-14 rounded-2xl border-2 border-slate-100 bg-slate-50 px-4 text-base font-medium focus:border-blue-500 focus:bg-white transition-all outline-none appearance-none cursor-pointer" required>
+                  <option value="singles">Singles Open</option>
+                  <option value="doubles">Doubles Open</option>
+                  <option value="mixed">Mixed Doubles</option>
+                </select>
+              </div>
+
+              {isTeam ? (
+                <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <div className="space-y-3">
+                    <label className="text-sm font-black text-slate-700 uppercase tracking-wider ml-1">Team/Pair Name</label>
+                    <Input name="teamName" placeholder="e.g. Smash Bros" className="h-14 rounded-2xl border-2 border-slate-100 text-lg px-6" required />
+                  </div>
+                  <div className="grid grid-cols-1 gap-6">
+                    <div className="space-y-3">
+                      <label className="text-sm font-black text-slate-700 uppercase tracking-wider ml-1">Player 1 Full Name</label>
+                      <Input name="p1" placeholder="Enter first player name..." className="h-14 rounded-2xl border-2 border-slate-100 text-lg px-6" required />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-sm font-black text-slate-700 uppercase tracking-wider ml-1">Player 2 Full Name</label>
+                      <Input name="p2" placeholder="Enter second player name..." className="h-14 rounded-2xl border-2 border-slate-100 text-lg px-6" required />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
+                  <label className="text-sm font-black text-slate-700 uppercase tracking-wider ml-1">Player Full Name</label>
+                  <Input name="name" placeholder="John Doe" className="h-14 rounded-xl border-2 border-slate-100 text-lg px-6" required />
+                </div>
+              )}
+
+              <div className="pt-6">
+                <Button type="submit" className="w-full h-16 bg-blue-600 hover:bg-blue-700 text-xl font-black rounded-2xl shadow-xl shadow-blue-500/20 transform transition-transform active:scale-95">
+                  Confirm Registration
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        <p className="text-center text-xs text-slate-400 font-medium">
+          Protected by SmashTrack Security • Only for {tournament.name}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 

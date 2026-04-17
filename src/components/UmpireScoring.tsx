@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { doc, updateDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot, runTransaction } from 'firebase/firestore';
 import { Match } from '../types';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -150,11 +150,64 @@ export default function UmpireScoring({ matchId, tournamentId, onExit }: UmpireS
 
   const endMatch = async () => {
     if (!match) return;
-    const matchRef = doc(db, `tournaments/${tournamentId}/matches/${matchId}`);
-    await updateDoc(matchRef, {
-      status: 'completed'
-    });
-    onExit();
+    
+    try {
+      await runTransaction(db, async (transaction) => {
+        const matchRef = doc(db, `tournaments/${tournamentId}/matches/${matchId}`);
+        const matchDoc = await transaction.get(matchRef);
+        
+        if (!matchDoc.exists()) throw new Error("Match does not exist");
+        const matchData = matchDoc.data() as Match;
+
+        if (matchData.status === 'completed') return; // Already processed
+
+        // 1. Update match status
+        transaction.update(matchRef, { status: 'completed' });
+
+        // 2. Determine winner and loser based on sets
+        const p1Wins = matchData.sets.filter(s => s.s1 > s.s2).length;
+        const p2Wins = matchData.sets.filter(s => s.s1 < s.s2).length;
+        
+        const winnerId = p1Wins > p2Wins ? matchData.player1Id : matchData.player2Id;
+        const loserId = p1Wins > p2Wins ? matchData.player2Id : matchData.player1Id;
+
+        // 3. Update Winner Stats if ID exists
+        if (winnerId) {
+          const winnerRef = doc(db, `tournaments/${tournamentId}/players/${winnerId}`);
+          const winnerDoc = await transaction.get(winnerRef);
+          if (winnerDoc.exists()) {
+            const currentStats = winnerDoc.data().stats || { matchesPlayed: 0, wins: 0, losses: 0, totalPoints: 0 };
+            transaction.update(winnerRef, {
+              stats: {
+                ...currentStats,
+                matchesPlayed: currentStats.matchesPlayed + 1,
+                wins: currentStats.wins + 1
+              }
+            });
+          }
+        }
+
+        // 4. Update Loser Stats if ID exists
+        if (loserId) {
+          const loserRef = doc(db, `tournaments/${tournamentId}/players/${loserId}`);
+          const loserDoc = await transaction.get(loserRef);
+          if (loserDoc.exists()) {
+            const currentStats = loserDoc.data().stats || { matchesPlayed: 0, wins: 0, losses: 0, totalPoints: 0 };
+            transaction.update(loserRef, {
+              stats: {
+                ...currentStats,
+                matchesPlayed: currentStats.matchesPlayed + 1,
+                losses: currentStats.losses + 1
+              }
+            });
+          }
+        }
+      });
+      onExit();
+    } catch (error) {
+      console.error("Error finalizing match stats:", error);
+      handleFirestoreError(error, OperationType.WRITE, `tournaments/${tournamentId}/matches/${matchId}`);
+    }
   };
 
   if (!match) return <div className="p-8 text-center">Loading match...</div>;

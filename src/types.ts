@@ -2,6 +2,7 @@ export interface Tournament {
   id?: string;
   name: string;
   organizerId: string;
+  licenseId?: string; // Link to the specific license used to create this tournament
   date: string;
   venue: string;
   numCourts: number;
@@ -70,6 +71,7 @@ export interface License {
   createdAt: string;
   status: 'active' | 'expired' | 'pending';
   usedByUid?: string;
+  lastLoginAt?: string;
 }
 
 export interface AppUser {

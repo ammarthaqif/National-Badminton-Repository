@@ -77,45 +77,51 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin' ||
-         (request.auth.token.email == "ammarthaqif.ar@gmail.com" && request.auth.token.email_verified == true));
+      return isAuthenticated() && (
+        (request.auth.token.email == "ammarthaqif.ar@gmail.com" && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin'))
+      );
     }
 
     function isOrganizer(tournamentId) {
       return isAuthenticated() && (resource == null || resource.data.organizerId == request.auth.uid || isAdmin());
     }
 
+    function isMatchEditor(tournamentId) {
+      return true; // Simplified for MVP, better check: isOrganizer(tournamentId) or has umpire pin
+    }
+
     function isValidTournament(data) {
-      return data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+      return isAdmin() || (data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
              data.organizerId is string && data.organizerId == request.auth.uid &&
              data.umpirePin is string && data.umpirePin.size() >= 4 && data.umpirePin.size() <= 10 &&
              data.audiencePin is string && data.audiencePin.size() >= 4 && data.audiencePin.size() <= 10 &&
              data.numCourts is number && data.numCourts >= 1 && data.numCourts <= 50 &&
              (!('venue' in data) || (data.venue is string && data.venue.size() <= 200)) &&
-             (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 1000));
+             (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 1000)));
     }
 
     function isValidMatch(data) {
-      return data.tournamentId is string &&
+      return isAdmin() || (data.tournamentId is string &&
              data.player1 is string && data.player1.size() >= 1 && data.player1.size() <= 100 &&
              data.player2 is string && data.player2.size() >= 1 && data.player2.size() <= 100 &&
              data.score1 is number && data.score1 >= 0 && data.score1 <= 1000 &&
              data.score2 is number && data.score2 >= 0 && data.score2 <= 1000 &&
              data.status in ['scheduled', 'ongoing', 'completed'] &&
-             (!('umpireName' in data) || (data.umpireName is string && data.umpireName.size() <= 100));
+             (!('umpireName' in data) || (data.umpireName is string && data.umpireName.size() <= 100)));
     }
 
     function isValidPlayer(data) {
-      return data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+      return isAdmin() || (data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
              data.tournamentId is string &&
-             data.category in ['singles', 'doubles', 'mixed'];
+             data.category in ['singles', 'doubles', 'mixed']);
     }
 
     function isValidUmpire(data) {
-      return data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
-             data.tournamentId is string;
+      return isAdmin() || (data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.tournamentId is string);
     }
 
     // ===============================================================
@@ -126,57 +132,52 @@ service cloud.firestore {
       // Anyone can read/list tournaments (needed for PIN search and audience view)
       allow read, list: if true;
       
-      allow create: if isAuthenticated() && isValidTournament(request.resource.data);
-      allow update: if isOrganizer(tournamentId) && isValidTournament(request.resource.data);
-      allow delete: if isOrganizer(tournamentId);
+      allow create: if (isAdmin() || isAuthenticated()) && isValidTournament(request.resource.data);
+      allow update: if (isAdmin() || isOrganizer(tournamentId)) && isValidTournament(request.resource.data);
+      allow delete: if isAdmin() || isOrganizer(tournamentId);
 
       match /matches/{matchId} {
         allow read: if true;
-        allow create: if isOrganizer(tournamentId) && isValidMatch(request.resource.data);
-        // Umpires can update matches if they have the PIN (checked client-side, but rules allow any update for now if valid)
-        // Ideally we'd check the PIN here, but it's in the parent doc.
-        allow update: if (isOrganizer(tournamentId) || true) && isValidMatch(request.resource.data);
-        allow delete: if isOrganizer(tournamentId);
+        allow create: if (isAdmin() || isOrganizer(tournamentId)) && isValidMatch(request.resource.data);
+        allow update: if (isAdmin() || isMatchEditor(tournamentId)) && isValidMatch(request.resource.data);
+        allow delete: if isAdmin() || isOrganizer(tournamentId);
       }
 
       match /players/{playerId} {
         allow read: if true;
-        allow create: if isOrganizer(tournamentId) && isValidPlayer(request.resource.data);
-        allow update: if isOrganizer(tournamentId) && isValidPlayer(request.resource.data);
-        allow delete: if isOrganizer(tournamentId);
+        allow create: if (isAdmin() || isOrganizer(tournamentId)) && isValidPlayer(request.resource.data);
+        allow update: if (isAdmin() || isOrganizer(tournamentId)) && isValidPlayer(request.resource.data);
+        allow delete: if isAdmin() || isOrganizer(tournamentId);
       }
 
       match /umpires/{umpireId} {
         allow read: if true;
-        allow create: if isOrganizer(tournamentId) && isValidUmpire(request.resource.data);
-        allow update: if isOrganizer(tournamentId) && isValidUmpire(request.resource.data);
-        allow delete: if isOrganizer(tournamentId);
+        allow create: if (isAdmin() || isOrganizer(tournamentId)) && isValidUmpire(request.resource.data);
+        allow update: if (isAdmin() || isOrganizer(tournamentId)) && isValidUmpire(request.resource.data);
+        allow delete: if isAdmin() || isOrganizer(tournamentId);
       }
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create, update: if isOwner(userId) && 
+      allow read, list: if isOwner(userId) || isAdmin();
+      allow create, update, delete: if isAdmin() || (isOwner(userId) && 
         (!('role' in request.resource.data) || 
          request.resource.data.role == 'user' || 
-         request.resource.data.role == 'organizer' || 
-         isAdmin());
+         request.resource.data.role == 'organizer'));
     }
 
     match /licenses/{licenseId} {
-      allow read: if isAdmin() || (isAuthenticated() && resource.data.organizerEmail == request.auth.token.email);
+      allow read, list: if isAdmin() || (isAuthenticated() && resource.data.organizerEmail == request.auth.token.email);
       // Allow anonymous users to query a specific license if they know the email and PIN
-      allow list: if isAdmin() || (isAuthenticated() && (
-        resource.data.organizerEmail == request.auth.token.email ||
+      allow list: if isAuthenticated() && (
         (request.auth.token.firebase.sign_in_provider == 'anonymous' && 
          request.query.limit <= 1)
-      ));
+      );
       allow write: if isAdmin();
     }
 
     match /mail/{mailId} {
-      allow create: if isAdmin();
-      allow read: if isAdmin();
+      allow read, write: if isAdmin();
     }
   }
 }
