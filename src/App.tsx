@@ -110,7 +110,7 @@ const LoginView = ({
         <Card className="border-none shadow-xl bg-white">
           <CardHeader className="text-center space-y-4">
             <div className="mx-auto bg-blue-600 p-4 rounded-2xl w-fit shadow-lg shadow-blue-200">
-              <Trophy className="w-12 h-12 text-white" />
+              <ShieldCheck className="w-12 h-12 text-white" />
             </div>
             <div>
               <CardTitle className="text-3xl font-bold tracking-tight text-slate-900 uppercase tracking-widest">National <span className="text-gold">Badminton</span> Registry</CardTitle>
@@ -256,7 +256,7 @@ const LandingView = ({ onStart }: { onStart: () => void }) => {
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="bg-navy p-2 rounded-xl shadow-lg shadow-navy/20">
-              <Trophy className="w-6 h-6 text-gold" />
+              <ShieldCheck className="w-6 h-6 text-gold" />
             </div>
             <span className="text-2xl font-black tracking-tight text-navy font-heading uppercase tracking-widest">National <span className="text-gold">Badminton</span> Registry</span>
           </div>
