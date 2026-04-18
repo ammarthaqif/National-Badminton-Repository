@@ -1,5 +1,5 @@
 {
   "name": "National Badminton Registry",
-  "description": "The official centralized database for badminton athletes, officials, and sanctioned institutions. Managed under the national sports authority standards.",
-  "requestFramePermissions": ["camera"]
+  "description": "National Badminton Registry (NBR) - Centralized system for athletes, officials, and sanctioned tournament management.",
+  "requestFramePermissions": ["camera", "microphone"]
 }
